@@ -1,0 +1,19 @@
+package engines
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewMemoryStorage(t *testing.T) {
+	// Создаем новый объект MemoryStorage
+	storage, ok := NewMemoryStorage[string, int]()
+
+	// Проверяем, что storage не nil
+	assert.NotNil(t, storage)
+	assert.True(t, ok)
+
+	// Проверяем, что начальная карта данных пуста
+	assert.Empty(t, storage.data)
+}
