@@ -3,101 +3,59 @@ package logger
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
-	"strings"
-	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-type LogLevel int
+var logger *zap.Logger
 
-const (
-	Debug LogLevel = iota
-	Info
-	Error
-)
+// InitializeLogger initializes the global logger based on the provided log level
+func InitializeLogger(level zap.AtomicLevel) error {
+	config := zap.NewProductionConfig()
 
-func (l LogLevel) String() string {
-	switch l {
-	case Debug:
-		return "debug"
-	case Info:
-		return "info"
-	case Error:
-		return "error"
-	default:
-		return "debug"
-	}
-}
-
-type StringBuilder interface {
-	WriteString(s string) (n int, err error)
-	String() string
-}
-
-type DefaultStringBuilder struct {
-	strings.Builder
-}
-
-type Logger struct {
-	level LogLevel
-	sb    StringBuilder
-}
-
-func NewLogger(level LogLevel, sb StringBuilder) *Logger {
-	if sb == nil {
-		sb = &DefaultStringBuilder{}
-	}
-	return &Logger{level: level, sb: sb}
-}
-
-func (l *Logger) logMessage(level LogLevel, msg string, extraFields ...interface{}) string {
-	if level < l.level {
-		return ""
+	config.EncoderConfig = zapcore.EncoderConfig{
+		MessageKey:   "message",
+		LevelKey:     "level",
+		TimeKey:      "@timestamp",
+		EncodeTime:   zapcore.ISO8601TimeEncoder,
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeCaller: zapcore.FullCallerEncoder,
 	}
 
-	_, file, line, _ := runtime.Caller(2)
-	traceID := generateTraceID()
-	timestamp := time.Now().Format(time.RFC3339)
+	config.Level = level
 
-	l.sb.WriteString("{")
-	l.sb.WriteString(fmt.Sprintf("\"@timestamp\": \"%s\", ", timestamp))
-	l.sb.WriteString(fmt.Sprintf("\"level\": \"%s\", ", level.String()))
-	l.sb.WriteString(fmt.Sprintf("\"message\": \"%s\", ", msg))
-	l.sb.WriteString(fmt.Sprintf("\"trace_id\": \"%s\", ", traceID))
-	l.sb.WriteString(fmt.Sprintf("\"caller\": \"%s:%d\", ", file, line))
+	var err error
+	logger, err = config.Build(zap.AddCaller()) // AddCaller() for file/line information
+	return err
+}
 
-	for i := 0; i < len(extraFields); i += 2 {
-		key, ok := extraFields[i].(string)
-		if !ok || i+1 >= len(extraFields) {
-			continue
-		}
-		value := extraFields[i+1]
-		l.sb.WriteString(fmt.Sprintf("\"%s\": \"%v\", ", key, value))
+// logMessage is a helper function to log messages with additional fields
+func logMessage(level zapcore.Level, msg string, fields ...zap.Field) {
+	fields = append(fields, zap.String("trace_id", fmt.Sprintf("%x", rand.Int63())))
+
+	switch level {
+	case zap.DebugLevel:
+		logger.Debug(msg, fields...)
+	case zap.InfoLevel:
+		logger.Info(msg, fields...)
+	case zap.ErrorLevel:
+		logger.Error(msg, fields...)
 	}
 
-	logMessage := l.sb.String()
-	if len(logMessage) > 1 {
-		logMessage = strings.TrimSuffix(logMessage, ", ")
-	}
-
-	l.sb.WriteString("}")
-
-	fmt.Println(logMessage)
-	return logMessage
 }
 
-func (l *Logger) Debug(msg string, extraFields ...interface{}) string {
-	return l.logMessage(Debug, msg, extraFields...)
+// Debug logs a message with debug level and additional fields
+func Debug(msg string, fields ...zap.Field) {
+	logMessage(zap.DebugLevel, msg, fields...)
 }
 
-func (l *Logger) Info(msg string, extraFields ...interface{}) string {
-	return l.logMessage(Info, msg, extraFields...)
+// Info logs a message with info level and additional fields
+func Info(msg string, fields ...zap.Field) {
+	logMessage(zap.InfoLevel, msg, fields...)
 }
 
-func (l *Logger) Error(msg string, extraFields ...interface{}) string {
-	return l.logMessage(Error, msg, extraFields...)
-}
-
-func generateTraceID() string {
-	return fmt.Sprintf("%x", rand.Int63())
+// Error logs a message with error level and additional fields
+func Error(msg string, fields ...zap.Field) {
+	logMessage(zap.ErrorLevel, msg, fields...)
 }
