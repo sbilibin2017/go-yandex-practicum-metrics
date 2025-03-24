@@ -16,6 +16,13 @@ func TestInitializeLogger(t *testing.T) {
 	assert.NoError(t, err, "Logger should initialize without error")
 }
 
+func TestGetLogger(t *testing.T) {
+	level := zap.NewAtomicLevelAt(zap.DebugLevel)
+	InitializeLogger(level)
+	logger := GetLogger()
+	assert.NotNil(t, logger)
+}
+
 func TestLogLevels(t *testing.T) {
 	var buf bytes.Buffer
 	core := zapcore.NewCore(
