@@ -1,6 +1,6 @@
 package types
 
 type MetricID struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+	ID   string     `json:"id"`
+	Type MetricType `json:"type"`
 }
