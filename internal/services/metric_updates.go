@@ -53,9 +53,9 @@ func (svc MetricUpdatesService) Updates(
 		}
 
 		switch metric.MetricID.Type {
-		case string(types.Gauge):
+		case types.Gauge:
 			existingMetric.Value = metric.Value
-		case string(types.Counter):
+		case types.Counter:
 			*existingMetric.Delta += *metric.Delta
 		}
 
