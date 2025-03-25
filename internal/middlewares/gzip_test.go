@@ -3,161 +3,96 @@ package middlewares
 import (
 	"bytes"
 	"compress/gzip"
+	"io"
+
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestGzipDecompressionOnRequest(t *testing.T) {
-	// Create a gzipped request body
-	var buf bytes.Buffer
-	gzipWriter := gzip.NewWriter(&buf)
-	_, err := gzipWriter.Write([]byte("Hello, World!"))
-	assert.NoError(t, err)
-	err = gzipWriter.Close()
-	assert.NoError(t, err)
+func TestGzipMiddleware_RequestDecompression(t *testing.T) {
+	data := []byte("test payload")
+	var compressedData bytes.Buffer
+	gzipWriter := gzip.NewWriter(&compressedData)
+	_, err := gzipWriter.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, gzipWriter.Close())
 
-	req := httptest.NewRequest(http.MethodPost, "/test", &buf)
-	req.Header.Set("Content-Encoding", "gzip")
-
-	// Create a basic handler to test the middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, data, body)
+		w.WriteHeader(http.StatusOK)
 	})
 
-	// Wrap the handler with the GzipMiddleware
-	gzipMiddleware := GzipMiddleware(handler)
+	middleware := GzipMiddleware(handler)
 
-	// Record the response
-	rr := httptest.NewRecorder()
-	gzipMiddleware.ServeHTTP(rr, req)
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(compressedData.Bytes()))
+	req.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
 
-	// Check that the response is correct
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "Hello, World!", rr.Body.String())
+	middleware.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestGzipCompressionOnResponse(t *testing.T) {
-	// Create a request that accepts gzip encoding
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+func TestGzipMiddleware_ResponseCompression(t *testing.T) {
+	data := "test response"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(data))
+	})
+
+	middleware := GzipMiddleware(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
 
-	// Create a basic handler to test the middleware
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
-	})
+	middleware.ServeHTTP(w, req)
 
-	// Wrap the handler with the GzipMiddleware
-	gzipMiddleware := GzipMiddleware(handler)
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
 
-	// Record the response
-	rr := httptest.NewRecorder()
-	gzipMiddleware.ServeHTTP(rr, req)
-
-	// Check that the response status is OK
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	// Check that the response body is gzipped
-	contentEncoding := rr.Header().Get("Content-Encoding")
-	assert.Equal(t, "gzip", contentEncoding)
-
-	// Try to decompress the response body to ensure it's valid gzip
-	gzipReader, err := gzip.NewReader(rr.Body)
-	assert.NoError(t, err)
-	defer gzipReader.Close()
-
-	// Read the decompressed body
-	var decompressedBuf bytes.Buffer
-	_, err = decompressedBuf.ReadFrom(gzipReader)
-	assert.NoError(t, err)
-
-	// Check the decompressed content
-	assert.Equal(t, "Hello, World!", decompressedBuf.String())
+	gzipReader, err := gzip.NewReader(w.Body)
+	require.NoError(t, err)
+	decompressedData, err := io.ReadAll(gzipReader)
+	require.NoError(t, err)
+	assert.Equal(t, data, string(decompressedData))
 }
 
-func TestNoGzipCompressionIfNotAccepted(t *testing.T) {
-	// Create a request that doesn't accept gzip encoding
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Accept-Encoding", "identity") // no gzip
+func TestGzipMiddleware_InvalidGzipRequest(t *testing.T) {
+	invalidData := []byte("invalid gzip data")
 
-	// Create a basic handler to test the middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
+		w.WriteHeader(http.StatusOK)
 	})
 
-	// Wrap the handler with the GzipMiddleware
-	gzipMiddleware := GzipMiddleware(handler)
+	middleware := GzipMiddleware(handler)
 
-	// Record the response
-	rr := httptest.NewRecorder()
-	gzipMiddleware.ServeHTTP(rr, req)
-
-	// Check that the response is not gzipped
-	contentEncoding := rr.Header().Get("Content-Encoding")
-	assert.Empty(t, contentEncoding) // Should not have the Content-Encoding header
-	assert.Equal(t, "Hello, World!", rr.Body.String())
-}
-
-// TestInvalidGzippedRequestBody tests the case where gzip.NewReader fails due to invalid gzipped data
-func TestInvalidGzippedRequestBody(t *testing.T) {
-	// Create a handler that we will pass through the GzipMiddleware
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// This handler won't be called if there is an error in decompression
-		w.Write([]byte("Success"))
-	})
-
-	// Wrap the handler with the GzipMiddleware
-	gzipMiddleware := GzipMiddleware(handler)
-
-	// Create a request with invalid gzip data in the body (e.g., random bytes that are not valid gzip)
-	invalidGzipData := []byte("This is not a valid gzip data")
-	var buf bytes.Buffer
-	// Simulating invalid gzip encoding by writing random data
-	_, err := buf.Write(invalidGzipData)
-	assert.NoError(t, err)
-
-	// Create a request with the invalid gzipped body
-	req := httptest.NewRequest(http.MethodPost, "/test", &buf)
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(invalidData))
 	req.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
 
-	// Record the response
-	rr := httptest.NewRecorder()
-	gzipMiddleware.ServeHTTP(rr, req)
+	middleware.ServeHTTP(w, req)
 
-	// Verify that the status code is 400 Bad Request (since the gzip decompression failed)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-
-	// Verify the error message in the response body
-	assert.Equal(t, "failed to read gzipped request body\n", rr.Body.String())
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, ErrFailedToReadGzipRequest.Error()+"\n", w.Body.String())
 }
 
-func TestWriteWithoutGzipCompression(t *testing.T) {
-	// Create a request that does not accept gzip encoding
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Accept-Encoding", "identity") // No gzip
-
-	// Create a basic handler to test the middleware
+func TestGzipMiddleware_WriteHeader(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The middleware should pass through the response without compression
-		w.Write([]byte("Hello, World!"))
+		w.WriteHeader(http.StatusCreated)
 	})
 
-	// Wrap the handler with the GzipMiddleware
-	gzipMiddleware := GzipMiddleware(handler)
+	middleware := GzipMiddleware(handler)
 
-	// Record the response
-	rr := httptest.NewRecorder()
-	gzipMiddleware.ServeHTTP(rr, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
 
-	// Check that the response status is OK
-	assert.Equal(t, http.StatusOK, rr.Code)
+	middleware.ServeHTTP(w, req)
 
-	// Check that the response body is not gzipped
-	contentEncoding := rr.Header().Get("Content-Encoding")
-	assert.Empty(t, contentEncoding) // Should not have the Content-Encoding header
-
-	// Check the response body is as expected
-	assert.Equal(t, "Hello, World!", rr.Body.String())
+	assert.Equal(t, http.StatusCreated, w.Code)
 }

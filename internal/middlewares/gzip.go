@@ -2,9 +2,14 @@ package middlewares
 
 import (
 	"compress/gzip"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
+)
+
+var (
+	ErrFailedToReadGzipRequest = errors.New("failed to read gzipped request body")
 )
 
 func GzipMiddleware(next http.Handler) http.Handler {
@@ -12,37 +17,37 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			gzipReader, err := gzip.NewReader(r.Body)
 			if err != nil {
-				http.Error(w, "failed to read gzipped request body", http.StatusBadRequest)
+				http.Error(w, ErrFailedToReadGzipRequest.Error(), http.StatusBadRequest)
 				return
 			}
 			defer gzipReader.Close()
-
 			r.Body = io.NopCloser(gzipReader)
 		}
-
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			w.Header().Set("Content-Encoding", "gzip")
-
 			gzipWriter := gzip.NewWriter(w)
 			defer gzipWriter.Close()
-
-			w = &gzipResponseWriter{
+			gzipResponseWriter := &gzipResponseWriter{
 				ResponseWriter: w,
 				Writer:         gzipWriter,
 			}
+			next.ServeHTTP(gzipResponseWriter, r)
+			return
 		}
-
 		next.ServeHTTP(w, r)
+
 	})
 }
 
-// gzipResponseWriter wraps http.ResponseWriter to write the gzipped response
 type gzipResponseWriter struct {
 	http.ResponseWriter
 	Writer io.Writer
 }
 
-// Write compresses the response body and writes it to the gzip.Writer
 func (rw *gzipResponseWriter) Write(p []byte) (int, error) {
 	return rw.Writer.Write(p)
+}
+
+func (rw *gzipResponseWriter) WriteHeader(statusCode int) {
+	rw.ResponseWriter.WriteHeader(statusCode)
 }
