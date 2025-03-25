@@ -6,4 +6,4 @@ type MetricUpdatePathRequest struct {
 	Value string
 }
 
-type MetricUpdatePathResponse Metrics
+type MetricUpdatePathResponse string
