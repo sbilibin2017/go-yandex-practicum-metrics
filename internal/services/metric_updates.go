@@ -2,21 +2,22 @@ package services
 
 import (
 	"context"
+	"database/sql"
+
 	"go-yandex-practicum-metrics/internal/errors"
 	"go-yandex-practicum-metrics/internal/types"
 )
 
+type Transaction interface {
+	Begin() (*sql.Tx, error)
+}
+
 type MetricUpdatesSaveRepository interface {
-	Save(ctx context.Context, metric *types.Metrics, tx Transaction) bool
+	Save(ctx context.Context, metric *types.Metrics) error
 }
 
 type MetricUpdatesFilterRepository interface {
-	Filter(ctx context.Context, filter types.MetricID, tx Transaction) (*types.Metrics, bool)
-}
-
-type Transaction interface {
-	Commit() error
-	Rollback() error
+	Filter(ctx context.Context, filter types.MetricID) (*types.Metrics, error)
 }
 
 type MetricUpdatesService struct {
@@ -25,27 +26,48 @@ type MetricUpdatesService struct {
 	transaction Transaction
 }
 
-// Метод обновления метрик с использованием транзакции
-func (svc MetricUpdatesService) Updates(
+func NewMetricUpdatesService(
+	save MetricUpdatesSaveRepository,
+	filter MetricUpdatesFilterRepository,
+	transaction Transaction,
+) *MetricUpdatesService {
+	return &MetricUpdatesService{
+		save:        save,
+		filter:      filter,
+		transaction: transaction,
+	}
+}
+
+func (svc *MetricUpdatesService) Updates(
 	ctx context.Context, metrics []*types.Metrics,
 ) ([]*types.Metrics, error) {
 	var updatedMetrics []*types.Metrics
+	var tx *sql.Tx
+	var err error
 
-	tx := svc.transaction
-
-	defer func() {
-		if err := tx.Rollback(); err != nil {
+	// Если транзакция поддерживается — начинаем её
+	if svc.transaction != nil {
+		tx, err = svc.transaction.Begin()
+		if err != nil {
+			return nil, errors.ErrMetricInternal
 		}
-	}()
+		defer func() {
+			if err := tx.Rollback(); err != nil {
+			}
+		}()
+	}
 
 	for _, metric := range metrics {
-		existingMetric, found := svc.filter.Filter(ctx, types.MetricID{
+		existingMetric, err := svc.filter.Filter(ctx, types.MetricID{
 			ID:   metric.MetricID.ID,
 			Type: metric.MetricID.Type,
-		}, tx)
+		})
+		if err != nil {
+			return nil, errors.ErrMetricInternal
+		}
 
-		if !found {
-			if ok := svc.save.Save(ctx, metric, tx); !ok {
+		if existingMetric == nil {
+			if err := svc.save.Save(ctx, metric); err != nil {
 				return nil, errors.ErrMetricInternal
 			}
 			updatedMetrics = append(updatedMetrics, metric)
@@ -59,13 +81,17 @@ func (svc MetricUpdatesService) Updates(
 			*existingMetric.Delta += *metric.Delta
 		}
 
-		svc.save.Save(ctx, existingMetric, tx)
+		if err := svc.save.Save(ctx, existingMetric); err != nil {
+			return nil, errors.ErrMetricInternal
+		}
 
 		updatedMetrics = append(updatedMetrics, existingMetric)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, errors.ErrMetricInternal
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, errors.ErrMetricInternal
+		}
 	}
 
 	return updatedMetrics, nil

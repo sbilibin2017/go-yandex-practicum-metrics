@@ -7,11 +7,11 @@ import (
 )
 
 type MetricUpdateSaveRepository interface {
-	Save(ctx context.Context, metric *types.Metrics) bool
+	Save(ctx context.Context, metric *types.Metrics) error
 }
 
 type MetricUpdateFilterRepository interface {
-	Filter(ctx context.Context, filter types.MetricID) (*types.Metrics, bool)
+	Filter(ctx context.Context, filter types.MetricID) (*types.Metrics, error)
 }
 
 type MetricUpdateService struct {
@@ -19,29 +19,43 @@ type MetricUpdateService struct {
 	filter MetricUpdateFilterRepository
 }
 
+func NewMetricUpdateService(
+	save MetricUpdateSaveRepository,
+	filter MetricUpdateFilterRepository,
+) *MetricUpdateService {
+	return &MetricUpdateService{
+		save:   save,
+		filter: filter,
+	}
+}
+
 // Метод обновления метрики
 func (svc MetricUpdateService) Update(
 	ctx context.Context, metric *types.Metrics,
 ) (*types.Metrics, error) {
-	existingMetric, found := svc.filter.Filter(ctx, types.MetricID{
+	existingMetric, err := svc.filter.Filter(ctx, types.MetricID{
 		ID:   metric.MetricID.ID,
 		Type: metric.MetricID.Type,
 	})
-	if !found {
-		if ok := svc.save.Save(ctx, metric); !ok {
+	if err != nil {
+		return nil, errors.ErrMetricInternal
+	}
+
+	if existingMetric == nil {
+		if err := svc.save.Save(ctx, metric); err != nil {
 			return nil, errors.ErrMetricInternal
 		}
 		return metric, nil
 	}
 
-	switch metric.MetricID.Type {
+	switch metric.Type {
 	case types.Gauge:
 		existingMetric.Value = metric.Value
 	case types.Counter:
 		*existingMetric.Delta += *metric.Delta
 	}
 
-	if ok := svc.save.Save(ctx, existingMetric); !ok {
+	if err := svc.save.Save(ctx, existingMetric); err != nil {
 		return nil, errors.ErrMetricInternal
 	}
 
