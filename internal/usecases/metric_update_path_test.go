@@ -1,362 +1,199 @@
-package usecases
+package usecases_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	e "go-yandex-practicum-metrics/internal/errors"
-	"go-yandex-practicum-metrics/internal/types"
+	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/usecases"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMetricUpdatePathUsecase_Execute_Success(t *testing.T) {
+func setup(t *testing.T) (*gomock.Controller, *usecases.MockMetricUpdatePathService, *usecases.MetricUpdatePathUsecase) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-
-	// Create the usecase instance with the mocked service
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
-	}
-
-	// Test cases for successful execution
-	tests := []struct {
-		name           string
-		req            *types.MetricUpdatePathRequest
-		mockUpdateResp *types.Metrics
-		expectedResp   *types.MetricUpdatePathResponse
-	}{
-		{
-			name: "valid counter update",
-			req: &types.MetricUpdatePathRequest{
-				Type:  "counter",
-				Name:  "metric1",
-				Value: "10",
-			},
-			mockUpdateResp: &types.Metrics{
-				MetricID: types.MetricID{
-					ID:   "metric1",
-					Type: types.Counter,
-				},
-				Delta: metricUpdatePtrInt64(10),
-			},
-			expectedResp: &types.MetricUpdatePathResponse{
-				MetricID: types.MetricID{
-					Type: types.Counter,
-					ID:   "metric1",
-				},
-				Delta: metricUpdatePtrInt64(10),
-				Value: nil,
-			},
-		},
-		{
-			name: "valid gauge update",
-			req: &types.MetricUpdatePathRequest{
-				Type:  "gauge",
-				Name:  "metric2",
-				Value: "3.14",
-			},
-			mockUpdateResp: &types.Metrics{
-				MetricID: types.MetricID{
-					ID:   "metric2",
-					Type: types.Gauge,
-				},
-				Value: metricUpdatePtrFloat64(3.14),
-			},
-			expectedResp: &types.MetricUpdatePathResponse{
-				MetricID: types.MetricID{
-					Type: types.Gauge,
-					ID:   "metric2",
-				},
-				Delta: nil,
-				Value: metricUpdatePtrFloat64(3.14),
-			},
-		},
-	}
-
-	// Run successful test cases
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Set up the mock behavior
-			mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Return(tt.mockUpdateResp, nil)
-
-			// Call Execute
-			resp, err := usecase.Execute(context.Background(), tt.req)
-
-			// Assert the response and error
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedResp, resp)
-		})
-	}
+	mockService := usecases.NewMockMetricUpdatePathService(ctrl)
+	usecase := usecases.NewMetricUpdatePathUsecase(mockService)
+	return ctrl, mockService, usecase
 }
 
-// Helper functions for setting up mock services and testing logic
-
-func TestMetricUpdatePathUsecase_Execute_ValidCounterUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestSuccessfulCounterUpdate(t *testing.T) {
+	ctrl, mockService, usecase := setup(t)
 	defer ctrl.Finish()
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_counter",
+		Type:  string(domain.Counter),
+		Value: "42",
 	}
 
-	// Test case where the counter update is valid
-	req := &types.MetricUpdatePathRequest{
-		Type:  "counter",
-		Name:  "metric1",
-		Value: "10",
-	}
-	mockUpdateResp := &types.Metrics{
-		MetricID: types.MetricID{
-			ID:   "metric1",
-			Type: types.Counter,
+	metric := &domain.Metrics{
+		MetricID: domain.MetricID{
+			ID:   "test_counter",
+			Type: domain.Counter,
 		},
-		Delta: metricUpdatePtrInt64(10),
-	}
-	expectedResp := &types.MetricUpdatePathResponse{
-		MetricID: types.MetricID{
-			Type: types.Counter,
-			ID:   "metric1",
-		},
-		Delta: metricUpdatePtrInt64(10),
-		Value: nil,
+		Delta: func(v int64) *int64 { return &v }(42),
 	}
 
-	mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Return(mockUpdateResp, nil)
+	mockService.EXPECT().Update(ctx, metric).Return(metric, nil)
 
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
+	resp, err := usecase.Execute(ctx, req)
 
-	// Assertions
 	assert.NoError(t, err)
-	assert.Equal(t, expectedResp, resp)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "Metric updated successfully", string(*resp))
 }
 
-func TestMetricUpdatePathUsecase_Execute_ValidGaugeUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestSuccessfulGaugeUpdate(t *testing.T) {
+	ctrl, mockService, usecase := setup(t)
 	defer ctrl.Finish()
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
-	}
-
-	// Test case where the gauge update is valid
-	req := &types.MetricUpdatePathRequest{
-		Type:  "gauge",
-		Name:  "metric2",
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_gauge",
+		Type:  string(domain.Gauge),
 		Value: "3.14",
 	}
-	mockUpdateResp := &types.Metrics{
-		MetricID: types.MetricID{
-			ID:   "metric2",
-			Type: types.Gauge,
+
+	metric := &domain.Metrics{
+		MetricID: domain.MetricID{
+			ID:   "test_gauge",
+			Type: domain.Gauge,
 		},
-		Value: metricUpdatePtrFloat64(3.14),
-	}
-	expectedResp := &types.MetricUpdatePathResponse{
-		MetricID: types.MetricID{
-			Type: types.Gauge,
-			ID:   "metric2",
-		},
-		Delta: nil,
-		Value: metricUpdatePtrFloat64(3.14),
+		Value: func(v float64) *float64 { return &v }(3.14),
 	}
 
-	mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Return(mockUpdateResp, nil)
+	mockService.EXPECT().Update(ctx, metric).Return(metric, nil)
 
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
+	resp, err := usecase.Execute(ctx, req)
 
-	// Assertions
 	assert.NoError(t, err)
-	assert.Equal(t, expectedResp, resp)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "Metric updated successfully", string(*resp))
 }
 
-func TestMetricUpdatePathUsecase_Execute_InvalidCounterValue(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestErrorOnInvalidCounterValue(t *testing.T) {
+	_, _, usecase := setup(t)
+
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_counter",
+		Type:  string(domain.Counter),
+		Value: "invalid",
+	}
+
+	resp, err := usecase.Execute(ctx, req)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathInvalidCounterValue)
+}
+
+func TestErrorOnInvalidGaugeValue(t *testing.T) {
+	_, _, usecase := setup(t)
+
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_gauge",
+		Type:  string(domain.Gauge),
+		Value: "invalid",
+	}
+
+	resp, err := usecase.Execute(ctx, req)
+
+	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathInvalidGaugeValue)
+}
+
+func TestErrorFromService(t *testing.T) {
+	ctrl, mockService, usecase := setup(t)
 	defer ctrl.Finish()
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_counter",
+		Type:  string(domain.Counter),
+		Value: "42",
 	}
 
-	// Test case where the counter value is invalid
-	req := &types.MetricUpdatePathRequest{
-		Type:  "counter",
-		Name:  "metric1",
-		Value: "invalid", // Invalid value
+	metric := &domain.Metrics{
+		MetricID: domain.MetricID{
+			ID:   "test_counter",
+			Type: domain.Counter,
+		},
+		Delta: func(v int64) *int64 { return &v }(42),
 	}
 
-	// We don't expect the Update function to be called
-	mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Times(0)
+	mockService.EXPECT().Update(ctx, metric).Return(nil, errors.New("service error"))
 
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
+	resp, err := usecase.Execute(ctx, req)
 
-	// Assertions
-	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, e.ErrInvalidCounterValue, err)
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathInternal)
 }
 
-func TestMetricUpdatePathUsecase_Execute_InvalidGaugeValue(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestErrorOnMissingID(t *testing.T) {
+	_, _, usecase := setup(t)
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "",
+		Type:  string(domain.Counter),
+		Value: "42",
 	}
 
-	// Test case where the gauge value is invalid
-	req := &types.MetricUpdatePathRequest{
-		Type:  "gauge",
-		Name:  "metric2",
-		Value: "invalid", // Invalid value for gauge
-	}
+	resp, err := usecase.Execute(ctx, req)
 
-	// We don't expect the Update function to be called
-	mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Times(0)
-
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
-
-	// Assertions
-	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, e.ErrInvalidGaugeValue, err)
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathIDRequired)
 }
 
-func TestMetricUpdatePathUsecase_Execute_UpdateServiceFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestErrorOnMissingType(t *testing.T) {
+	_, _, usecase := setup(t)
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_metric",
+		Type:  "",
+		Value: "42",
 	}
 
-	// Test case where the update service fails
-	req := &types.MetricUpdatePathRequest{
-		Type:  "gauge",
-		Name:  "metric3",
-		Value: "5.67",
-	}
+	resp, err := usecase.Execute(ctx, req)
 
-	mockUpdateErr := e.ErrMetricInternal
-	// We expect the Update method to be called
-	mockService.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil, mockUpdateErr)
-
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
-
-	// Assertions
-	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, mockUpdateErr, err)
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathTypeRequired)
 }
 
-// Helper functions to create pointers to basic types
-func metricUpdatePtrInt64(i int64) *int64 {
-	return &i
-}
+func TestErrorOnInvalidType(t *testing.T) {
+	_, _, usecase := setup(t)
 
-func metricUpdatePtrFloat64(f float64) *float64 {
-	return &f
-}
-
-func TestMetricUpdatePathUsecase_Execute_ValidateTypeFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_metric",
+		Type:  "invalid_type",
+		Value: "42",
 	}
 
-	// Test case where the ValidateType fails
-	// We assume "invalid_type" is an invalid type
-	req := &types.MetricUpdatePathRequest{
-		Type:  "invalid_type", // Invalid type
-		Name:  "metric1",
-		Value: "10",
-	}
+	resp, err := usecase.Execute(ctx, req)
 
-	// No expectation for Update call, because validation fails
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
-
-	// Assertions
-	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, e.ErrInvalidMetricType, err) // We expect the validation error to be returned
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathInvalidType)
 }
 
-func TestMetricUpdatePathUsecase_Execute_ValidateNameFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestErrorOnMissingValue(t *testing.T) {
+	_, _, usecase := setup(t)
 
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
+	ctx := context.Background()
+	req := &usecases.MetricUpdatePathRequest{
+		ID:    "test_metric",
+		Type:  string(domain.Counter),
+		Value: "",
 	}
 
-	// Test case where the ValidateName fails
-	// We assume an empty name will fail the validation
-	req := &types.MetricUpdatePathRequest{
-		Type:  "counter",
-		Name:  "", // Invalid name (empty string)
-		Value: "10",
-	}
+	resp, err := usecase.Execute(ctx, req)
 
-	// No expectation for Update call, because validation fails
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
-
-	// Assertions
-	assert.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Equal(t, e.ErrMetricNameRequired, err) // We expect the validation error to be returned
-}
-
-func TestMetricUpdatePathUsecase_Execute_ValidateValueFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Mock the MetricUpdatePathService
-	mockService := NewMockMetricUpdatePathService(ctrl)
-	usecase := &MetricUpdatePathUsecase{
-		svc: mockService,
-	}
-
-	// Test case where the ValidateValue fails
-	// We assume an empty value will fail the validation
-	req := &types.MetricUpdatePathRequest{
-		Type:  "counter",
-		Name:  "metric1",
-		Value: "", // Invalid value (empty string)
-	}
-
-	// No expectation for Update call, because validation fails
-	// Execute the use case
-	resp, err := usecase.Execute(context.Background(), req)
-
-	// Assertions
-	assert.Error(t, err)
-	assert.Nil(t, resp)
-	assert.Equal(t, e.ErrMetricValueRequired, err) // We expect the validation error to be returned
+	assert.ErrorIs(t, err, usecases.ErrMetricUpdatePathValueRequired)
 }

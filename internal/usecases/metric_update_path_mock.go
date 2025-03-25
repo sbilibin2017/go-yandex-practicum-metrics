@@ -6,7 +6,7 @@ package usecases
 
 import (
 	context "context"
-	types "go-yandex-practicum-metrics/internal/types"
+	domain "go-yandex-practicum-metrics/internal/domain"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -36,10 +36,10 @@ func (m *MockMetricUpdatePathService) EXPECT() *MockMetricUpdatePathServiceMockR
 }
 
 // Update mocks base method.
-func (m *MockMetricUpdatePathService) Update(ctx context.Context, metric *types.Metrics) (*types.Metrics, error) {
+func (m *MockMetricUpdatePathService) Update(ctx context.Context, metric *domain.Metrics) (*domain.Metrics, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, metric)
-	ret0, _ := ret[0].(*types.Metrics)
+	ret0, _ := ret[0].(*domain.Metrics)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
