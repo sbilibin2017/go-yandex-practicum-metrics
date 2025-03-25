@@ -16,9 +16,12 @@ func NewMetricMemorySaveRepository(data map[types.MetricID]*types.Metrics) *Metr
 }
 
 // Save method for saving a single metric
-func (m *MetricMemorySaveRepository) Save(ctx context.Context, metric *types.Metrics) bool {
+func (m *MetricMemorySaveRepository) Save(ctx context.Context, metric *types.Metrics) error {
+	if metric == nil {
+		return nil
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.data[metric.MetricID] = metric
-	return true
+	return nil
 }

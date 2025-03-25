@@ -9,29 +9,29 @@ import (
 )
 
 // Интерфейс для работы с файлом: чтение и перемещение
-type FileFilterReader interface {
+type FileListReader interface {
 	io.Reader
 	io.Seeker
 }
 
 // Интерфейс для декодирования данных
-type FileFilterDecoder interface {
+type FileListDecoder interface {
 	Decode(v interface{}) error // Для декодирования данных
 }
 
-// Репозиторий для фильтрации метрик из файла
-type MetricFileFilterRepository struct {
-	file    FileFilterReader  // Интерфейс для работы с файлом
-	decoder FileFilterDecoder // Интерфейс для декодирования данных
+// Репозиторий для работы с метриками в файле
+type MetricFileListRepository struct {
+	file    FileListReader  // Интерфейс для работы с файлом
+	decoder FileListDecoder // Интерфейс для декодирования данных
 }
 
-// Конструктор репозитория, использующий DI
-func NewMetricFileFilterRepository(file FileFilterReader, decoder FileFilterDecoder) *MetricFileFilterRepository {
-	return &MetricFileFilterRepository{file: file, decoder: decoder}
+// Конструктор для создания нового репозитория с зависимостями через DI
+func NewMetricFileListRepository(file FileListReader, decoder FileListDecoder) *MetricFileListRepository {
+	return &MetricFileListRepository{file: file, decoder: decoder}
 }
 
-// Filter метод для фильтрации метрик из файла
-func (m *MetricFileFilterRepository) Filter(ctx context.Context, filter types.MetricID) (*types.Metrics, error) {
+// ListAll метод для получения всех метрик из файла
+func (m *MetricFileListRepository) List(ctx context.Context) ([]*types.Metrics, error) {
 	if m.file == nil {
 		return nil, errors.New("file is not initialized") // Возвращаем ошибку, если файл не инициализирован
 	}
@@ -44,6 +44,8 @@ func (m *MetricFileFilterRepository) Filter(ctx context.Context, filter types.Me
 
 	// Декодируем данные из файла
 	decoder := json.NewDecoder(m.file)
+	result := make(map[types.MetricID]*types.Metrics)
+
 	for {
 		var metric types.Metrics
 		// Декодируем метрику
@@ -53,10 +55,14 @@ func (m *MetricFileFilterRepository) Filter(ctx context.Context, filter types.Me
 			}
 			return nil, err // Возвращаем ошибку, если не удалось декодировать
 		}
-		if metric.MetricID == filter {
-			return &metric, nil // Возвращаем метрику, если она соответствует фильтру
-		}
+		result[metric.MetricID] = &metric
 	}
 
-	return nil, nil // Возвращаем nil, если метрика не найдена
+	// Преобразуем результаты в срез
+	var metricsSlice []*types.Metrics
+	for _, metric := range result {
+		metricsSlice = append(metricsSlice, metric)
+	}
+
+	return metricsSlice, nil // Возвращаем срез метрик и nil для ошибки
 }

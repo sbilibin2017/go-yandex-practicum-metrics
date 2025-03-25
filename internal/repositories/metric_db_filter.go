@@ -5,20 +5,25 @@ import (
 	"database/sql"
 	"go-yandex-practicum-metrics/internal/types"
 
-	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type MetricDBFilterRepository struct {
-	db *sql.DB
+// DBQuerier - интерфейс для выполнения запроса, который возвращает одну строку
+type DBFilterQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
-func NewMetricDBFilterRepository(db *sql.DB) *MetricDBFilterRepository {
-	// The connection is assumed to be already open
+type MetricDBFilterRepository struct {
+	db DBFilterQuerier
+}
+
+func NewMetricDBFilterRepository(db DBFilterQuerier) *MetricDBFilterRepository {
 	return &MetricDBFilterRepository{db: db}
 }
 
-// Filter method to retrieve a metric based on the given MetricID filter
-func (m *MetricDBFilterRepository) Filter(ctx context.Context, filter types.MetricID) (*types.Metrics, bool) {
+func (m *MetricDBFilterRepository) Filter(
+	ctx context.Context, filter types.MetricID,
+) (*types.Metrics, error) {
 	query := `SELECT id, type, delta, value FROM metrics WHERE id = $1 AND type = $2`
 	var metric types.Metrics
 	err := m.db.QueryRowContext(
@@ -28,9 +33,9 @@ func (m *MetricDBFilterRepository) Filter(ctx context.Context, filter types.Metr
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, false
+			return nil, nil // No result found, returning nil for metrics and nil for error.
 		}
-		return nil, false
+		return nil, err // Return the error if it's not sql.ErrNoRows.
 	}
-	return &metric, true
+	return &metric, nil // Return the metric and nil for error when successful.
 }

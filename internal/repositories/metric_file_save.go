@@ -2,25 +2,26 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"go-yandex-practicum-metrics/internal/types"
-	"os"
 )
 
-type MetricFileSaveRepository struct {
-	file *os.File
+type FileEncoder interface {
+	Encode(v interface{}) error
 }
 
-func NewMetricFileSaveRepository(file *os.File) *MetricFileSaveRepository {
-	return &MetricFileSaveRepository{file: file}
+type MetricFileSaveRepository struct {
+	encoder FileEncoder
+}
+
+func NewMetricFileSaveRepository(encoder FileEncoder) *MetricFileSaveRepository {
+	return &MetricFileSaveRepository{encoder: encoder}
 }
 
 // Save method to save a single metric to the file
-func (m *MetricFileSaveRepository) Save(ctx context.Context, metric *types.Metrics) bool {
-	if m.file == nil {
-		return false
+func (m *MetricFileSaveRepository) Save(ctx context.Context, metric *types.Metrics) error {
+	err := m.encoder.Encode(metric)
+	if err != nil {
+		return err
 	}
-	encoder := json.NewEncoder(m.file)
-	err := encoder.Encode(metric)
-	return err == nil
+	return nil
 }
