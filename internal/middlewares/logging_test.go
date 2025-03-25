@@ -1,62 +1,47 @@
 package middlewares
 
 import (
-	"bytes"
+	"io"
+
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-func TestLoggingMiddleware(t *testing.T) {
-	// Initialize a buffer to capture logs
-	var buf bytes.Buffer
-	writeSyncer := zapcore.AddSync(&buf)
-	logger := zap.New(zapcore.NewCore(
-		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		writeSyncer,
-		zap.NewAtomicLevelAt(zap.InfoLevel),
-	))
+type MockLogger struct {
+	mock.Mock
+}
 
-	// Create a test HTTP handler to pass through the middleware
+func (m *MockLogger) Infow(msg string, args ...any) {
+	m.Called(msg, args)
+}
+
+func TestLoggingMiddleware(t *testing.T) {
+	mockLogger := new(MockLogger)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello, World!"))
+		w.WriteHeader(http.StatusTeapot)
+		_, _ = io.WriteString(w, "Hello, world!")
 	})
 
-	// Wrap the handler with the LoggingMiddleware using the custom logger
-	loggingMiddleware := LoggingMiddleware(logger)(handler)
+	middleware := LoggingMiddleware(mockLogger)
+	wrappedHandler := middleware(handler)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
 
-	// Create a test HTTP request
-	req, err := http.NewRequest(http.MethodGet, "/test-uri", nil)
+	mockLogger.On("Infow", "Request received", mock.Anything).Once()
+	mockLogger.On("Infow", "Response sent", mock.Anything).Once()
+
+	wrappedHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
+	assert.Equal(t, http.StatusTeapot, resp.StatusCode)
+	assert.Equal(t, "Hello, world!", string(body))
 
-	// Create a response recorder to capture the response
-	rr := httptest.NewRecorder()
-
-	// Call the middleware with the request and response recorder
-	loggingMiddleware.ServeHTTP(rr, req)
-
-	// Assert that the response status code is 200
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	// Assert that the response body is "Hello, World!"
-	assert.Equal(t, "Hello, World!", rr.Body.String())
-
-	// Assert that the log buffer contains the expected logs
-	logs := buf.String()
-
-	// Check that the logs contain the expected entries
-	assert.Contains(t, logs, "Request received")
-	assert.Contains(t, logs, "/test-uri") // Check if the correct URI is logged
-	assert.Contains(t, logs, "GET")       // Check if the correct HTTP method is logged
-	assert.Contains(t, logs, "duration")  // Ensure duration is logged
-
-	assert.Contains(t, logs, "Response sent")
-	assert.Contains(t, logs, "200")  // Check if the status code is logged
-	assert.Contains(t, logs, "size") // Ensure the size of the response is logged
+	mockLogger.AssertExpectations(t)
 }

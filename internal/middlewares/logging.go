@@ -1,35 +1,50 @@
 package middlewares
 
 import (
+	"crypto/rand"
+	"fmt"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
-// LoggingMiddleware logs incoming HTTP requests and their corresponding responses
-func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+type Logger interface {
+	Infow(msg string, args ...any)
+}
+
+func LoggingMiddleware(logger Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			responseRecorder := &responseLoggingWriter{ResponseWriter: w}
+			requestID := generateUUID()
 			start := time.Now()
-			logger.Info("Request received",
-				zap.String("method", r.Method),
-				zap.String("uri", r.URL.Path),
-				zap.Duration("duration", time.Since(start)),
+			logger.Infow("Request received",
+				"request_id", requestID,
+				"method", r.Method,
+				"uri", r.URL.Path,
 			)
-
-			next.ServeHTTP(responseRecorder, r)
-
-			logger.Info("Response sent",
-				zap.Int("status", responseRecorder.StatusCode()),
-				zap.Int("size", responseRecorder.Size()),
+			responseRecorder := &responseLoggingWriter{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK,
+			}
+			w = responseRecorder
+			next.ServeHTTP(w, r)
+			logger.Infow("Response sent",
+				"request_id", requestID,
+				"status", responseRecorder.StatusCode(),
+				"size", responseRecorder.Size(),
+				"duration", time.Since(start),
 			)
 		})
 	}
 }
 
-// Custom response writer to capture status code and response size
+func generateUUID() string {
+	var uuid [16]byte
+	rand.Read(uuid[:])
+	uuid[6] = (uuid[6] & 0x0f) | 0x40
+	uuid[8] = (uuid[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:])
+}
+
 type responseLoggingWriter struct {
 	http.ResponseWriter
 	statusCode int
