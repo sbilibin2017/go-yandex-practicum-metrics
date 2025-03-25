@@ -2,67 +2,55 @@ package usecases
 
 import (
 	"context"
-	"errors"
-	"go-yandex-practicum-metrics/internal/domain"
+
+	"go-yandex-practicum-metrics/internal/errors"
+	"go-yandex-practicum-metrics/internal/types"
 )
 
-type MetricUpdatesBodyRequest []*MetricUpdateBodyRequest
-
-type MetricUpdatesBodyResponse []*MetricUpdateBodyRequest
-
 type MetricUpdatesBodyService interface {
-	Update(ctx context.Context, metrics []*domain.Metrics) ([]*domain.Metrics, error)
+	Updates(ctx context.Context, metrics []*types.Metrics) ([]*types.Metrics, error)
 }
 
 type MetricUpdatesBodyUsecase struct {
 	svc MetricUpdatesBodyService
 }
 
-var (
-	ErrMetricUpdatesBodyNotProvider  = errors.New("no metrics provided")
-	ErrMetricUpdatesBodyInternal     = errors.New("internal error")
-	ErrMetricUpdatesBodyTypeRequired = errors.New("metric type required")
-	ErrMetricUpdatesBodyInvalidType  = errors.New("metric counter or gauge required")
-	ErrMetricUpdatesBodyIDRequired   = errors.New("metric id required")
-	ErrMetricUpdatesBodyInvalidValue = errors.New("metric value is invalid")
-)
-
 func NewMetricUpdatesBodyUsecase(svc MetricUpdatesBodyService) *MetricUpdatesBodyUsecase {
 	return &MetricUpdatesBodyUsecase{svc: svc}
 }
 
 func (uc *MetricUpdatesBodyUsecase) Execute(
-	ctx context.Context, req *MetricUpdatesBodyRequest,
-) (*MetricUpdatesBodyResponse, error) {
+	ctx context.Context, req *types.MetricUpdatesBodyRequest,
+) (*types.MetricUpdatesBodyResponse, error) {
 	if len(*req) == 0 {
-		return nil, ErrMetricUpdatesBodyNotProvider
+		return nil, errors.ErrMetricBodyNotProvider
 	}
 
-	var metrics []*domain.Metrics
+	var metrics []*types.Metrics
 	for _, r := range *req {
 		if r.ID == "" {
-			return nil, ErrMetricUpdatesBodyIDRequired
+			return nil, errors.ErrMetricIDRequired
 		}
 		if r.Type == "" {
-			return nil, ErrMetricUpdatesBodyTypeRequired
+			return nil, errors.ErrMetricTypeRequired
 		}
-		if r.Type != string(domain.Counter) && r.Type != string(domain.Gauge) {
-			return nil, ErrMetricUpdatesBodyInvalidType
+		if r.Type != string(types.Counter) && r.Type != string(types.Gauge) {
+			return nil, errors.ErrMetricInvalidType
 		}
 
-		var metric domain.Metrics
+		var metric types.Metrics
 		metric.ID = r.ID
-		metric.Type = domain.MetricType(r.Type)
+		metric.Type = types.MetricType(r.Type)
 
 		switch metric.Type {
-		case domain.Counter:
+		case types.Counter:
 			if r.Delta == nil {
-				return nil, ErrMetricUpdatesBodyInvalidValue
+				return nil, errors.ErrMetricInvalidDelta
 			}
 			metric.Delta = r.Delta
-		case domain.Gauge:
+		case types.Gauge:
 			if r.Value == nil {
-				return nil, ErrMetricUpdatesBodyInvalidValue
+				return nil, errors.ErrMetricInvalidValue
 			}
 			metric.Value = r.Value
 		}
@@ -70,14 +58,14 @@ func (uc *MetricUpdatesBodyUsecase) Execute(
 		metrics = append(metrics, &metric)
 	}
 
-	updatedMetrics, err := uc.svc.Update(ctx, metrics)
+	updatedMetrics, err := uc.svc.Updates(ctx, metrics)
 	if err != nil {
-		return nil, ErrMetricUpdatesBodyInternal
+		return nil, errors.ErrMetricInternal
 	}
 
-	var responseMetricResponses MetricUpdatesBodyResponse
+	var responseMetricResponses types.MetricUpdatesBodyResponse
 	for _, updated := range updatedMetrics {
-		responseMetricResponses = append(responseMetricResponses, &MetricUpdateBodyRequest{
+		responseMetricResponses = append(responseMetricResponses, &types.MetricUpdateBodyRequest{
 			ID:    updated.ID,
 			Type:  string(updated.Type),
 			Delta: updated.Delta,

@@ -2,83 +2,65 @@ package usecases
 
 import (
 	"context"
-	"errors"
-	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
+	"go-yandex-practicum-metrics/internal/types"
 )
 
-type MetricUpdateBodyRequest struct {
-	ID    string   `json:"id"`
-	Type  string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
-}
-
-type MetricUpdateBodyResponse struct {
-	MetricUpdateBodyRequest
-}
-
 type MetricUpdateBodyService interface {
-	Update(ctx context.Context, metric *domain.Metrics) (*domain.Metrics, error)
+	Update(ctx context.Context, metric *types.Metrics) (*types.Metrics, error)
 }
 
 type MetricUpdateBodyUsecase struct {
 	svc MetricUpdateBodyService
 }
 
-var (
-	ErrMetricUpdateBodyInternal     = errors.New("internal error")
-	ErrMetricUpdateBodyTypeRequired = errors.New("metric type required")
-	ErrMetricUpdateBodyInvalidType  = errors.New("metric counter or gauge required")
-	ErrMetricUpdateBodyIDRequired   = errors.New("metric id required")
-	ErrMetricUpdateBodyInvalidValue = errors.New("metric value is invalid")
-)
-
 func NewMetricUpdateBodyUsecase(svc MetricUpdateBodyService) *MetricUpdateBodyUsecase {
 	return &MetricUpdateBodyUsecase{svc: svc}
 }
 
 func (uc *MetricUpdateBodyUsecase) Execute(
-	ctx context.Context, req *MetricUpdateBodyRequest,
-) (*MetricUpdateBodyResponse, error) {
+	ctx context.Context, req *types.MetricUpdateBodyRequest,
+) (*types.MetricUpdateBodyResponse, error) {
 	if req.ID == "" {
-		return nil, ErrMetricUpdateBodyIDRequired
+		return nil, errors.ErrMetricIDRequired
 	}
 	if req.Type == "" {
-		return nil, ErrMetricUpdateBodyTypeRequired
+		return nil, errors.ErrMetricTypeRequired
 	}
-	if req.Type != string(domain.Counter) && req.Type != string(domain.Gauge) {
-		return nil, ErrMetricUpdateBodyInvalidType
+	if req.Type != string(types.Counter) && req.Type != string(types.Gauge) {
+		return nil, errors.ErrMetricInvalidType
 	}
 
-	var metric domain.Metrics
+	var metric types.Metrics
 	metric.ID = req.ID
-	metric.Type = domain.MetricType(req.Type)
+	metric.Type = types.MetricType(req.Type)
 
 	switch metric.Type {
-	case domain.Counter:
+	case types.Counter:
 		if req.Delta == nil {
-			return nil, ErrMetricUpdateBodyInvalidValue
+			return nil, errors.ErrMetricInvalidDelta
 		}
 		metric.Delta = req.Delta
-	case domain.Gauge:
+	case types.Gauge:
 		if req.Value == nil {
-			return nil, ErrMetricUpdateBodyInvalidValue
+			return nil, errors.ErrMetricInvalidValue
 		}
 		metric.Value = req.Value
 	}
 
 	updated, err := uc.svc.Update(ctx, &metric)
 	if err != nil {
-		return nil, ErrMetricUpdateBodyInternal
+		return nil, errors.ErrMetricInternal
 	}
 
-	response := MetricUpdateBodyResponse{
-		MetricUpdateBodyRequest{
+	response := types.MetricUpdateBodyResponse{
+		MetricUpdateBodyRequest: types.MetricUpdateBodyRequest{
 			ID:    updated.ID,
 			Type:  string(updated.Type),
 			Delta: updated.Delta,
 			Value: updated.Value,
 		},
 	}
+
 	return &response, nil
 }

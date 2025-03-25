@@ -2,84 +2,66 @@ package usecases
 
 import (
 	"context"
-	"errors"
-	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
+	"go-yandex-practicum-metrics/internal/types"
 	"strconv"
 )
 
-type MetricUpdatePathRequest struct {
-	ID    string
-	Type  string
-	Value string
-}
-
-type MetricUpdatePathResponse string
-
 type MetricUpdatePathService interface {
-	Update(ctx context.Context, metric *domain.Metrics) (*domain.Metrics, error)
+	Update(ctx context.Context, metric *types.Metrics) (*types.Metrics, error)
 }
 
 type MetricUpdatePathUsecase struct {
 	svc MetricUpdatePathService
 }
 
-var (
-	ErrMetricUpdatePathInternal            = errors.New("internal error")
-	ErrMetricUpdatePathTypeRequired        = errors.New("metric type required")
-	ErrMetricUpdatePathInvalidType         = errors.New("metric counter or gauge required")
-	ErrMetricUpdatePathIDRequired          = errors.New("metric id required")
-	ErrMetricUpdatePathValueRequired       = errors.New("metric value required")
-	ErrMetricUpdatePathInvalidCounterValue = errors.New("metric invalid counter value")
-	ErrMetricUpdatePathInvalidGaugeValue   = errors.New("metric invalid gauge value")
-)
-
 func NewMetricUpdatePathUsecase(svc MetricUpdatePathService) *MetricUpdatePathUsecase {
 	return &MetricUpdatePathUsecase{svc: svc}
 }
 
-// Execute processes the update request for a metric path.
 func (uc *MetricUpdatePathUsecase) Execute(
-	ctx context.Context, req *MetricUpdatePathRequest,
-) (*MetricUpdatePathResponse, error) {
+	ctx context.Context, req *types.MetricUpdatePathRequest,
+) (*types.MetricUpdatePathResponse, error) {
 	var emptyString = ""
 
-	if req.ID == emptyString {
-		return nil, ErrMetricUpdatePathIDRequired
+	if req.Name == emptyString {
+		return nil, errors.ErrMetricIDRequired
 	}
 	if req.Type == emptyString {
-		return nil, ErrMetricUpdatePathTypeRequired
+		return nil, errors.ErrMetricTypeRequired
 	}
-	if req.Type != string(domain.Counter) && req.Type != string(domain.Gauge) {
-		return nil, ErrMetricUpdatePathInvalidType
+	if req.Type != string(types.Counter) && req.Type != string(types.Gauge) {
+		return nil, errors.ErrMetricInvalidType
 	}
 	if req.Value == emptyString {
-		return nil, ErrMetricUpdatePathValueRequired
+		return nil, errors.ErrMetricValueRequired
 	}
 
-	var metric domain.Metrics
-	metric.ID = req.ID
-	metric.Type = domain.MetricType(req.Type)
+	var metric types.Metrics
+	metric.ID = req.Name
+	metric.Type = types.MetricType(req.Type)
 
 	switch metric.Type {
-	case domain.Counter:
+	case types.Counter:
 		value, err := strconv.ParseInt(req.Value, 10, 64)
 		if err != nil {
-			return nil, ErrMetricUpdatePathInvalidCounterValue
+			return nil, errors.ErrMetricInvalidDelta
 		}
 		metric.Delta = &value
-	case domain.Gauge:
+	case types.Gauge:
 		value, err := strconv.ParseFloat(req.Value, 64)
 		if err != nil {
-			return nil, ErrMetricUpdatePathInvalidGaugeValue
+			return nil, errors.ErrMetricInvalidValue
 		}
 		metric.Value = &value
 	}
 
 	_, err := uc.svc.Update(ctx, &metric)
 	if err != nil {
-		return nil, ErrMetricUpdatePathInternal
+		return nil, errors.ErrMetricInternal
 	}
 
-	successMessage := MetricUpdatePathResponse("Metric updated successfully")
-	return &successMessage, nil
+	response := types.MetricUpdatePathResponse("Metric updated successfully")
+
+	return &response, nil
 }
