@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setup(t *testing.T) (*gomock.Controller, *usecases.MockMetricUpdatePathService, *usecases.MetricUpdatePathUsecase) {
+func setupMetricUpdatePath(t *testing.T) (*gomock.Controller, *usecases.MockMetricUpdatePathService, *usecases.MetricUpdatePathUsecase) {
 	ctrl := gomock.NewController(t)
 	mockService := usecases.NewMockMetricUpdatePathService(ctrl)
 	usecase := usecases.NewMetricUpdatePathUsecase(mockService)
@@ -20,7 +20,7 @@ func setup(t *testing.T) (*gomock.Controller, *usecases.MockMetricUpdatePathServ
 }
 
 func TestSuccessfulCounterUpdate(t *testing.T) {
-	ctrl, mockService, usecase := setup(t)
+	ctrl, mockService, usecase := setupMetricUpdatePath(t)
 	defer ctrl.Finish()
 
 	ctx := context.Background()
@@ -48,7 +48,7 @@ func TestSuccessfulCounterUpdate(t *testing.T) {
 }
 
 func TestSuccessfulGaugeUpdate(t *testing.T) {
-	ctrl, mockService, usecase := setup(t)
+	ctrl, mockService, usecase := setupMetricUpdatePath(t)
 	defer ctrl.Finish()
 
 	ctx := context.Background()
@@ -76,7 +76,7 @@ func TestSuccessfulGaugeUpdate(t *testing.T) {
 }
 
 func TestErrorOnInvalidCounterValue(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
@@ -92,7 +92,7 @@ func TestErrorOnInvalidCounterValue(t *testing.T) {
 }
 
 func TestErrorOnInvalidGaugeValue(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
@@ -108,7 +108,7 @@ func TestErrorOnInvalidGaugeValue(t *testing.T) {
 }
 
 func TestErrorFromService(t *testing.T) {
-	ctrl, mockService, usecase := setup(t)
+	ctrl, mockService, usecase := setupMetricUpdatePath(t)
 	defer ctrl.Finish()
 
 	ctx := context.Background()
@@ -135,7 +135,7 @@ func TestErrorFromService(t *testing.T) {
 }
 
 func TestErrorOnMissingID(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
@@ -151,7 +151,7 @@ func TestErrorOnMissingID(t *testing.T) {
 }
 
 func TestErrorOnMissingType(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
@@ -167,7 +167,7 @@ func TestErrorOnMissingType(t *testing.T) {
 }
 
 func TestErrorOnInvalidType(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
@@ -183,7 +183,7 @@ func TestErrorOnInvalidType(t *testing.T) {
 }
 
 func TestErrorOnMissingValue(t *testing.T) {
-	_, _, usecase := setup(t)
+	_, _, usecase := setupMetricUpdatePath(t)
 
 	ctx := context.Background()
 	req := &usecases.MetricUpdatePathRequest{
