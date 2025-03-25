@@ -12,16 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type MockLogger struct {
+type MockLoggingMiddlewareLogger struct {
 	mock.Mock
 }
 
-func (m *MockLogger) Infow(msg string, args ...any) {
+func (m *MockLoggingMiddlewareLogger) Infow(msg string, args ...any) {
 	m.Called(msg, args)
 }
 
 func TestLoggingMiddleware(t *testing.T) {
-	mockLogger := new(MockLogger)
+	mockLogger := new(MockLoggingMiddlewareLogger)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 		_, _ = io.WriteString(w, "Hello, world!")

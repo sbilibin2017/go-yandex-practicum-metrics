@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-type Logger interface {
+type LoggingMiddlewareLogger interface {
 	Infow(msg string, args ...any)
 }
 
-func LoggingMiddleware(logger Logger) func(http.Handler) http.Handler {
+func LoggingMiddleware(logger LoggingMiddlewareLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestID := generateUUID()
