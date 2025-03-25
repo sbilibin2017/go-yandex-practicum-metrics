@@ -12,37 +12,37 @@ type Logger interface {
 	Infow(msg string, args ...any)
 }
 
-func RegisterUpdateMetricPathRoute(
+func RegisterMetricUpdatePathRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
 ) {
 	subRouter := setupMetricRouter(logger)
 	subRouter.Post("/update/{type}/{id}/{value}", handler)
-	router.Mount("/", subRouter)
+	addMetricRouter(router, subRouter)
 }
 
-func RegisterUpdateMetricBodyRoute(
+func RegisterMetricUpdateBodyRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
 ) {
 	subRouter := setupMetricRouter(logger)
 	subRouter.Post("/update/", handler)
-	router.Mount("/", subRouter)
+	addMetricRouter(router, subRouter)
 }
 
-func RegisterUpdatesMetricBodyRoute(
+func RegisterMetricUpdatesBodyRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
 ) {
 	subRouter := setupMetricRouter(logger)
 	subRouter.Post("/updates/", handler)
-	router.Mount("/", subRouter)
+	addMetricRouter(router, subRouter)
 }
 
-func RegisterGetMetricByTypeAndIDPathRoute(
+func RegisterMetricGetPathRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
@@ -52,7 +52,7 @@ func RegisterGetMetricByTypeAndIDPathRoute(
 	addMetricRouter(router, subRouter)
 }
 
-func RegisterGetMetricByByTypeAndIDBodyRoute(
+func RegisterMetricGetBodyRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
@@ -62,7 +62,7 @@ func RegisterGetMetricByByTypeAndIDBodyRoute(
 	addMetricRouter(router, subRouter)
 }
 
-func RegisterListMetricsHTMLRoute(
+func RegisterMetricsListHTMLRoute(
 	router chi.Router,
 	handler http.HandlerFunc,
 	logger Logger,
@@ -70,6 +70,10 @@ func RegisterListMetricsHTMLRoute(
 	subRouter := setupMetricRouter(logger)
 	subRouter.Get("/", handler)
 	addMetricRouter(router, subRouter)
+}
+
+func addMetricRouter(router chi.Router, subRouter chi.Router) {
+	router.Mount("/", subRouter)
 }
 
 func setupMetricRouter(logger Logger) *chi.Mux {
@@ -80,10 +84,6 @@ func setupMetricRouter(logger Logger) *chi.Mux {
 
 func newRouter() *chi.Mux {
 	return chi.NewRouter()
-}
-
-func addMetricRouter(router chi.Router, subRouter chi.Router) {
-	router.Mount("/", subRouter)
 }
 
 func useMetricMiddlewares(router chi.Router, logger Logger) {

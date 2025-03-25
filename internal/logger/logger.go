@@ -12,7 +12,7 @@ const (
 	ErrorLevel
 )
 
-var logger *zap.SugaredLogger
+var Logger *zap.SugaredLogger
 
 func InitializeLogger(level LogLevel) {
 	cfg := zap.NewProductionConfig()
@@ -20,7 +20,7 @@ func InitializeLogger(level LogLevel) {
 
 	rawLogger, _ := cfg.Build()
 
-	logger = rawLogger.Sugar()
+	Logger = rawLogger.Sugar()
 
 }
 
@@ -33,12 +33,4 @@ func convertLogLevel(level LogLevel) zapcore.Level {
 	default:
 		return zap.InfoLevel
 	}
-}
-
-func Infow(msg string, keysAndValues ...interface{}) {
-	logger.Infow(msg, keysAndValues...)
-}
-
-func Errorw(msg string, keysAndValues ...interface{}) {
-	logger.Errorw(msg, keysAndValues...)
 }

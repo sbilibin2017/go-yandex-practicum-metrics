@@ -3,12 +3,13 @@ package errors
 import "errors"
 
 var (
-	ErrMetricInternal      = errors.New("internal error")
-	ErrMetricNotFound      = errors.New("metric not found")
-	ErrMetricTypeRequired  = errors.New("metric type required")
-	ErrInvalidMetricType   = errors.New("metric counter or gauge required")
-	ErrMetricNameRequired  = errors.New("metric name required")
-	ErrMetricValueRequired = errors.New("metric value required")
-	ErrInvalidCounterValue = errors.New("metric invalid counter value")
-	ErrInvalidGaugeValue   = errors.New("metric invalid gauge value")
+	ErrMetricBodyNotProvider = errors.New("metric body not provided")
+	ErrMetricInternal        = errors.New("internal error")
+	ErrMetricNotFound        = errors.New("metric not found")
+	ErrMetricIDRequired      = errors.New("metric ID required")
+	ErrMetricTypeRequired    = errors.New("metric type required")
+	ErrMetricValueRequired   = errors.New("metric value required")
+	ErrMetricInvalidType     = errors.New("invalid metric type")
+	ErrMetricInvalidDelta    = errors.New("invalid metric delta")
+	ErrMetricInvalidValue    = errors.New("invalid metric value")
 )
