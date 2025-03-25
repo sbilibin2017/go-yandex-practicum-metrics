@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,54 +8,47 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func TestInitializeLogger(t *testing.T) {
-	level := zap.NewAtomicLevelAt(zap.DebugLevel)
-	err := InitializeLogger(level)
-	assert.NoError(t, err, "Logger should initialize without error")
+func TestInitializeLoggerWithInfoLevel(t *testing.T) {
+	assert.NotPanics(t, func() {
+		InitializeLogger(InfoLevel)
+	})
 }
 
-func TestGetLogger(t *testing.T) {
-	level := zap.NewAtomicLevelAt(zap.DebugLevel)
-	InitializeLogger(level)
-	logger := GetLogger()
-	assert.NotNil(t, logger)
+func TestInitializeLoggerWithErrorLevel(t *testing.T) {
+	assert.NotPanics(t, func() {
+		InitializeLogger(ErrorLevel)
+	})
 }
 
-func TestLogLevels(t *testing.T) {
-	var buf bytes.Buffer
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		zapcore.AddSync(&buf),
-		zap.DebugLevel,
-	)
+func TestInfowLogging(t *testing.T) {
+	// Initializing logger
+	InitializeLogger(InfoLevel)
 
-	logger = zap.New(core)
-
-	Debug("debug message")
-	Info("info message")
-	Error("error message")
-
-	logOutput := buf.String()
-	assert.Contains(t, logOutput, "debug message", "Debug message should be logged")
-	assert.Contains(t, logOutput, "info message", "Info message should be logged")
-	assert.Contains(t, logOutput, "error message", "Error message should be logged")
+	assert.NotPanics(t, func() {
+		Infow("Test info message", "key", "value")
+	})
 }
 
-func TestTraceIDPresence(t *testing.T) {
-	var buf bytes.Buffer
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		zapcore.AddSync(&buf),
-		zap.DebugLevel,
-	)
+func TestErrorwLogging(t *testing.T) {
+	// Initializing logger
+	InitializeLogger(InfoLevel)
 
-	logger = zap.New(core)
+	assert.NotPanics(t, func() {
+		Errorw("Test error message", "key", "value")
+	})
+}
 
-	Info("test message")
+func TestConvertLogLevel(t *testing.T) {
+	testCases := []struct {
+		input    LogLevel
+		expected zapcore.Level
+	}{
+		{InfoLevel, zap.InfoLevel},
+		{ErrorLevel, zap.ErrorLevel},
+		{LogLevel(99), zap.InfoLevel}, // Проверка значения по умолчанию
+	}
 
-	var logEntry map[string]interface{}
-	err := json.Unmarshal(buf.Bytes(), &logEntry)
-	assert.NoError(t, err, "Log output should be valid JSON")
-	_, exists := logEntry["trace_id"]
-	assert.True(t, exists, "trace_id should be present in log entry")
+	for _, tc := range testCases {
+		assert.Equal(t, tc.expected, convertLogLevel(tc.input))
+	}
 }

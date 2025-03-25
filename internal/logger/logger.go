@@ -1,65 +1,50 @@
 package logger
 
 import (
-	"fmt"
-	"math/rand"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var logger *zap.Logger
+// LogLevel — кастомный enum для уровней логирования
+type LogLevel int
 
-// InitializeLogger initializes the global logger based on the provided log level
-func InitializeLogger(level zap.AtomicLevel) error {
-	config := zap.NewProductionConfig()
+const (
+	InfoLevel LogLevel = iota
+	ErrorLevel
+)
 
-	config.EncoderConfig = zapcore.EncoderConfig{
-		MessageKey:   "message",
-		LevelKey:     "level",
-		TimeKey:      "@timestamp",
-		EncodeTime:   zapcore.ISO8601TimeEncoder,
-		EncodeLevel:  zapcore.LowercaseLevelEncoder,
-		EncodeCaller: zapcore.FullCallerEncoder,
-	}
+// logger — глобальный экземпляр логгера
+var logger *zap.SugaredLogger
 
-	config.Level = level
+// InitializeLogger инициализирует глобальный логгер с кастомным уровнем
+func InitializeLogger(level LogLevel) {
+	cfg := zap.NewProductionConfig()
+	cfg.Level = zap.NewAtomicLevelAt(convertLogLevel(level)) // Конвертируем кастомный уровень
 
-	var err error
-	logger, err = config.Build(zap.AddCaller()) // AddCaller() for file/line information
-	return err
+	rawLogger, _ := cfg.Build()
+
+	logger = rawLogger.Sugar()
+
 }
 
-func GetLogger() *zap.Logger {
-	return logger
-}
-
-// Debug logs a message with debug level and additional fields
-func Debug(msg string, fields ...zap.Field) {
-	logMessage(zap.DebugLevel, msg, fields...)
-}
-
-// Info logs a message with info level and additional fields
-func Info(msg string, fields ...zap.Field) {
-	logMessage(zap.InfoLevel, msg, fields...)
-}
-
-// Error logs a message with error level and additional fields
-func Error(msg string, fields ...zap.Field) {
-	logMessage(zap.ErrorLevel, msg, fields...)
-}
-
-// logMessage is a helper function to log messages with additional fields
-func logMessage(level zapcore.Level, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", fmt.Sprintf("%x", rand.Int63())))
-
+// convertLogLevel конвертирует кастомный LogLevel в zapcore.Level
+func convertLogLevel(level LogLevel) zapcore.Level {
 	switch level {
-	case zap.DebugLevel:
-		logger.Debug(msg, fields...)
-	case zap.InfoLevel:
-		logger.Info(msg, fields...)
-	case zap.ErrorLevel:
-		logger.Error(msg, fields...)
+	case InfoLevel:
+		return zap.InfoLevel
+	case ErrorLevel:
+		return zap.ErrorLevel
+	default:
+		return zap.InfoLevel
 	}
+}
 
+// Infow логирует информационные сообщения
+func Infow(msg string, keysAndValues ...interface{}) {
+	logger.Infow(msg, keysAndValues...)
+}
+
+// Errorw логирует ошибки
+func Errorw(msg string, keysAndValues ...interface{}) {
+	logger.Errorw(msg, keysAndValues...)
 }
