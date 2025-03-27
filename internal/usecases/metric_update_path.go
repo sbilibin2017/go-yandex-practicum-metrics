@@ -2,8 +2,8 @@ package usecases
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 	"strconv"
 )
 
@@ -49,24 +49,26 @@ func (r *MetricUpdatePathRequest) ToDomain() (*domain.Metrics, error) {
 	case string(domain.Counter):
 		metricType = string(domain.Counter)
 	default:
-		return nil, errors.New("invalid metric type")
+		return nil, errors.InvalidMetricTypeError
 	}
+
 	if r.Name == "" {
-		return nil, errors.New("missing metric name")
+		return nil, errors.MissingMetricNameError
 	}
+
 	var delta *int64
 	var value *float64
 	switch metricType {
 	case string(domain.Gauge):
 		v, err := strconv.ParseFloat(r.Value, 64)
 		if err != nil {
-			return nil, errors.New("invalid metric value")
+			return nil, errors.InvalidMetricValueError
 		}
 		value = &v
 	case string(domain.Counter):
 		v, err := strconv.ParseInt(r.Value, 10, 64)
 		if err != nil {
-			return nil, errors.New("invalid metric value")
+			return nil, errors.InvalidMetricValueError
 		}
 		delta = &v
 	}

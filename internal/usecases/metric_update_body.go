@@ -2,8 +2,8 @@ package usecases
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricUpdateBodyService interface {
@@ -29,9 +29,9 @@ func (uc MetricUpdateBodyUsecase) Execute(
 	if err != nil {
 		return nil, err
 	}
-	var resp *MetricUpdateBodyResponse
-	resp = resp.FromDomain(metrics)
-	return resp, nil
+	resp := MetricUpdateBodyResponse{}
+	resp = *resp.FromDomain(metrics)
+	return &resp, nil
 }
 
 type MetricUpdateBodyRequest struct {
@@ -46,21 +46,24 @@ func (req *MetricUpdateBodyRequest) ToDomain() ([]*domain.Metrics, error) {
 	case string(domain.Counter):
 		metricType = string(domain.Counter)
 	default:
-		return nil, errors.New("invalid metric type")
+		return nil, errors.InvalidMetricTypeError
 	}
+
 	if req.ID == "" {
-		return nil, errors.New("missing metric id")
+		return nil, errors.MissingMetricNameError
 	}
+
 	switch metricType {
 	case string(domain.Gauge):
 		if req.Value == nil {
-			return nil, errors.New("invalid metric value")
+			return nil, errors.InvalidMetricValueError
 		}
 	case string(domain.Counter):
 		if req.Delta == nil {
-			return nil, errors.New("invalid metric delta")
+			return nil, errors.InvalidMetricValueError
 		}
 	}
+
 	return []*domain.Metrics{req.Metrics}, nil
 }
 

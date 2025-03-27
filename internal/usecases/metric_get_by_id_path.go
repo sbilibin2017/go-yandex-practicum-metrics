@@ -2,9 +2,9 @@ package usecases
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricGetByIDPathService interface {
@@ -45,7 +45,7 @@ type MetricGetByIDPathRequest struct {
 
 func (req *MetricGetByIDPathRequest) ToDomain() (*domain.MetricID, error) {
 	if req.Name == "" {
-		return nil, errors.New("missing metric name")
+		return nil, errors.MissingMetricNameError
 	}
 	switch req.Type {
 	case string(domain.Gauge), string(domain.Counter):
@@ -54,7 +54,7 @@ func (req *MetricGetByIDPathRequest) ToDomain() (*domain.MetricID, error) {
 			Type: req.Type,
 		}, nil
 	default:
-		return nil, errors.New("invalid metric type")
+		return nil, errors.InvalidMetricTypeError
 	}
 }
 
@@ -65,16 +65,16 @@ func (resp *MetricGetByIDPathResponse) FromDomain(metric *domain.Metrics) error 
 	switch metric.Type {
 	case string(domain.Counter):
 		if metric.Delta == nil {
-			return errors.New("invalid metric value")
+			return errors.InvalidMetricValueError
 		}
 		value = fmt.Sprintf("%d", *metric.Delta)
 	case string(domain.Gauge):
 		if metric.Value == nil {
-			return errors.New("invalid metric value")
+			return errors.InvalidMetricValueError
 		}
 		value = fmt.Sprintf("%f", *metric.Value)
 	default:
-		return errors.New("invalid metric type")
+		return errors.InvalidMetricTypeError
 	}
 	*resp = MetricGetByIDPathResponse(value)
 	return nil

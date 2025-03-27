@@ -2,8 +2,8 @@ package usecases
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricUpdateBatchBodyService interface {
@@ -42,17 +42,17 @@ func (reqs MetricUpdateBatchBodyRequest) ToDomain() ([]*domain.Metrics, error) {
 		switch r.Type {
 		case string(domain.Gauge):
 			if r.Value == nil {
-				return nil, errors.New("invalid metric value")
+				return nil, errors.InvalidMetricValueError
 			}
 		case string(domain.Counter):
 			if r.Delta == nil {
-				return nil, errors.New("invalid metric delta")
+				return nil, errors.InvalidMetricValueError
 			}
 		default:
-			return nil, errors.New("invalid metric type")
+			return nil, errors.InvalidMetricTypeError
 		}
 		if r.ID == "" {
-			return nil, errors.New("missing metric id")
+			return nil, errors.MissingMetricNameError
 		}
 		metrics = append(metrics, r.Metrics)
 	}
