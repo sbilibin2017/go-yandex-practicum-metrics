@@ -6,28 +6,28 @@ import (
 	"go-yandex-practicum-metrics/internal/domain"
 )
 
-type MetricSaveBatchRepository interface {
+type MetricUpdateSaveBatchRepository interface {
 	SaveBatch(ctx context.Context, metrics []*domain.Metrics) error
 }
 
-type MetricFindBatchRepository interface {
+type MetricUpdateFindBatchRepository interface {
 	FindBatch(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, error)
 }
 
-type Transaction interface {
+type MetricUpdateTransaction interface {
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) (any, error)) (any, error)
 }
 
 type MetricUpdateService struct {
-	saveRepo MetricSaveBatchRepository
-	findRepo MetricFindBatchRepository
-	tx       Transaction
+	saveRepo MetricUpdateSaveBatchRepository
+	findRepo MetricUpdateFindBatchRepository
+	tx       MetricUpdateTransaction
 }
 
 func NewMetricUpdateService(
-	saveRepo MetricSaveBatchRepository,
-	findRepo MetricFindBatchRepository,
-	tx Transaction,
+	saveRepo MetricUpdateSaveBatchRepository,
+	findRepo MetricUpdateFindBatchRepository,
+	tx MetricUpdateTransaction,
 ) *MetricUpdateService {
 	return &MetricUpdateService{
 		saveRepo: saveRepo,
