@@ -22,7 +22,7 @@ func NewMetricUpdatePathUsecase(svc MetricUpdatePathService) *MetricUpdatePathUs
 func (uc MetricUpdatePathUsecase) Execute(
 	ctx context.Context, req *MetricUpdatePathRequest,
 ) (*MetricUpdatePathResponse, error) {
-	metric, err := MetricUpdatePathRequestToDomain(req)
+	metric, err := req.ToDomain()
 	if err != nil {
 		return nil, err
 	}
@@ -41,36 +41,38 @@ type MetricUpdatePathRequest struct {
 	Value string
 }
 
-func MetricUpdatePathRequestToDomain(req *MetricUpdatePathRequest) (*domain.Metrics, error) {
+func (r *MetricUpdatePathRequest) ToDomain() (*domain.Metrics, error) {
 	var metricType string
-	switch req.Type {
+	switch r.Type {
 	case string(domain.Gauge):
 		metricType = string(domain.Gauge)
 	case string(domain.Counter):
 		metricType = string(domain.Counter)
 	default:
-		return nil, ErrInvalidPathMetricType
+		return nil, errors.New("invalid metric type")
 	}
-
+	if r.Name == "" {
+		return nil, errors.New("missing metric name")
+	}
 	var delta *int64
 	var value *float64
 	switch metricType {
 	case string(domain.Gauge):
-		v, err := strconv.ParseFloat(req.Value, 64)
+		v, err := strconv.ParseFloat(r.Value, 64)
 		if err != nil {
-			return nil, ErrInvalidPathMetricValue
+			return nil, errors.New("invalid metric value")
 		}
 		value = &v
 	case string(domain.Counter):
-		v, err := strconv.ParseInt(req.Value, 10, 64)
+		v, err := strconv.ParseInt(r.Value, 10, 64)
 		if err != nil {
-			return nil, ErrInvalidPathMetricValue
+			return nil, errors.New("invalid metric value")
 		}
 		delta = &v
 	}
 
 	return &domain.Metrics{
-		ID:    req.Name,
+		ID:    r.Name,
 		Type:  metricType,
 		Delta: delta,
 		Value: value,
@@ -78,11 +80,5 @@ func MetricUpdatePathRequestToDomain(req *MetricUpdatePathRequest) (*domain.Metr
 }
 
 type MetricUpdatePathResponse []byte
-
-var (
-	ErrInvalidPathMetricType  = errors.New("invalid metric type")
-	ErrInvalidPathMetricValue = errors.New("invalid metric value")
-	ErrMissingPathMetricName  = errors.New("missing metric name")
-)
 
 var MetricUpdateSuccessMessage = []byte("Metric updated successfully")

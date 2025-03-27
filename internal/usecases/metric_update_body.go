@@ -46,16 +46,19 @@ func (req *MetricUpdateBodyRequest) ToDomain() ([]*domain.Metrics, error) {
 	case string(domain.Counter):
 		metricType = string(domain.Counter)
 	default:
-		return nil, ErrInvalidBodyMetricType
+		return nil, errors.New("invalid metric type")
+	}
+	if req.ID == "" {
+		return nil, errors.New("missing metric id")
 	}
 	switch metricType {
 	case string(domain.Gauge):
 		if req.Value == nil {
-			return nil, ErrInvalidBodyMetricValue
+			return nil, errors.New("invalid metric value")
 		}
 	case string(domain.Counter):
 		if req.Delta == nil {
-			return nil, ErrInvalidBodyMetricDelta
+			return nil, errors.New("invalid metric delta")
 		}
 	}
 	return []*domain.Metrics{req.Metrics}, nil
@@ -70,10 +73,3 @@ func (r *MetricUpdateBodyResponse) FromDomain(metrics []*domain.Metrics) *Metric
 		Metrics: metrics[0],
 	}
 }
-
-var (
-	ErrInvalidBodyMetricType  = errors.New("invalid metric type")
-	ErrInvalidBodyMetricValue = errors.New("invalid metric value")
-	ErrInvalidBodyMetricDelta = errors.New("invalid metric delta")
-	ErrMissingBodyMetricName  = errors.New("missing metric name")
-)

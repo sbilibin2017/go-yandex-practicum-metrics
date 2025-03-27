@@ -19,9 +19,9 @@ func NewMetricUpdateBatchBodyUsecase(svc MetricUpdateBatchBodyService) *MetricUp
 }
 
 func (uc MetricUpdateBatchBodyUsecase) Execute(
-	ctx context.Context, req []*MetricUpdateBodyRequest,
+	ctx context.Context, req MetricUpdateBatchBodyRequest,
 ) ([]*MetricUpdateBodyResponse, error) {
-	metrics, err := MetricUpdateBatchBodyRequestToDomain(req)
+	metrics, err := req.ToDomain()
 	if err != nil {
 		return nil, err
 	}
@@ -29,26 +29,30 @@ func (uc MetricUpdateBatchBodyUsecase) Execute(
 	if err != nil {
 		return nil, err
 	}
-	resp := MetricUpdateBatchBodyResponseFromDomain(metrics)
+	resp := MetricUpdateBatchBodyResponse{}
+	resp.FromDomain(metrics)
 	return resp, nil
 }
 
 type MetricUpdateBatchBodyRequest []*MetricUpdateBodyRequest
 
-func MetricUpdateBatchBodyRequestToDomain(req []*MetricUpdateBodyRequest) ([]*domain.Metrics, error) {
+func (reqs MetricUpdateBatchBodyRequest) ToDomain() ([]*domain.Metrics, error) {
 	var metrics []*domain.Metrics
-	for _, r := range req {
+	for _, r := range reqs {
 		switch r.Type {
 		case string(domain.Gauge):
 			if r.Value == nil {
-				return nil, ErrInvalidBodyBatchMetricValue
+				return nil, errors.New("invalid metric value")
 			}
 		case string(domain.Counter):
 			if r.Delta == nil {
-				return nil, ErrInvalidBodyBatchMetricDelta
+				return nil, errors.New("invalid metric delta")
 			}
 		default:
-			return nil, ErrInvalidBodyBatchMetricType
+			return nil, errors.New("invalid metric type")
+		}
+		if r.ID == "" {
+			return nil, errors.New("missing metric id")
 		}
 		metrics = append(metrics, r.Metrics)
 	}
@@ -57,17 +61,8 @@ func MetricUpdateBatchBodyRequestToDomain(req []*MetricUpdateBodyRequest) ([]*do
 
 type MetricUpdateBatchBodyResponse []*MetricUpdateBodyResponse
 
-func MetricUpdateBatchBodyResponseFromDomain(metrics []*domain.Metrics) []*MetricUpdateBodyResponse {
-	var responses []*MetricUpdateBodyResponse
+func (resp *MetricUpdateBatchBodyResponse) FromDomain(metrics []*domain.Metrics) {
 	for _, metric := range metrics {
-		responses = append(responses, &MetricUpdateBodyResponse{Metrics: metric})
+		*resp = append(*resp, &MetricUpdateBodyResponse{Metrics: metric})
 	}
-	return responses
 }
-
-var (
-	ErrInvalidBodyBatchMetricType  = errors.New("invalid metric type")
-	ErrInvalidBodyBatchMetricValue = errors.New("invalid metric value")
-	ErrInvalidBodyBatchMetricDelta = errors.New("invalid metric delta")
-	ErrMissingBodyBatchMetricName  = errors.New("missing metric name")
-)
