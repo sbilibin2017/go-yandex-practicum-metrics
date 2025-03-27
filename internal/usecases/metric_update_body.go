@@ -21,7 +21,7 @@ func NewMetricUpdateBodyUsecase(svc MetricUpdateBodyService) *MetricUpdateBodyUs
 func (uc MetricUpdateBodyUsecase) Execute(
 	ctx context.Context, req *MetricUpdateBodyRequest,
 ) (*MetricUpdateBodyResponse, error) {
-	metrics, err := MetricUpdateBodyRequestToDomain(req)
+	metrics, err := req.ToDomain()
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,8 @@ func (uc MetricUpdateBodyUsecase) Execute(
 	if err != nil {
 		return nil, err
 	}
-	resp := MetricUpdateBodyResponseFromDomain(metrics)
+	var resp *MetricUpdateBodyResponse
+	resp = resp.FromDomain(metrics)
 	return resp, nil
 }
 
@@ -37,8 +38,7 @@ type MetricUpdateBodyRequest struct {
 	*domain.Metrics
 }
 
-// Replace the method `ToDomain` with a function
-func MetricUpdateBodyRequestToDomain(req *MetricUpdateBodyRequest) ([]*domain.Metrics, error) {
+func (req *MetricUpdateBodyRequest) ToDomain() ([]*domain.Metrics, error) {
 	var metricType string
 	switch req.Type {
 	case string(domain.Gauge):
@@ -65,8 +65,7 @@ type MetricUpdateBodyResponse struct {
 	*domain.Metrics
 }
 
-// Replace the method `FromDomain` with a function
-func MetricUpdateBodyResponseFromDomain(metrics []*domain.Metrics) *MetricUpdateBodyResponse {
+func (r *MetricUpdateBodyResponse) FromDomain(metrics []*domain.Metrics) *MetricUpdateBodyResponse {
 	return &MetricUpdateBodyResponse{
 		Metrics: metrics[0],
 	}
