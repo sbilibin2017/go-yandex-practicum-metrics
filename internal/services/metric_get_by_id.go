@@ -28,15 +28,15 @@ var (
 )
 
 func (s *MetricGetService) GetByID(
-	ctx context.Context, id domain.MetricID,
-) ([]*domain.Metrics, error) {
-	existingMetrics, err := s.findRepo.FindBatch(ctx, []domain.MetricID{id})
+	ctx context.Context, id *domain.MetricID,
+) (*domain.Metrics, error) {
+	existingMetrics, err := s.findRepo.FindBatch(ctx, []domain.MetricID{*id})
 	if err != nil {
 		return nil, ErrMetricGetInternal
 	}
-	metrics, exists := existingMetrics[id]
+	metrics, exists := existingMetrics[*id]
 	if !exists {
 		return nil, ErrMetricNotFound
 	}
-	return []*domain.Metrics{metrics}, nil
+	return metrics, nil
 }
