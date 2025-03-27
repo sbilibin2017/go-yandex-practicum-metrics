@@ -1,6 +1,6 @@
 package domain
 
 type MetricID struct {
-	ID   string
-	Type MetricType
+	ID   string `json:"id"`
+	Type string `json:"type"`
 }

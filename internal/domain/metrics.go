@@ -1,7 +1,8 @@
 package domain
 
 type Metrics struct {
-	MetricID
-	Delta *int64
-	Value *float64
+	ID    string   `json:"id"`
+	Type  string   `json:"type"`
+	Delta *int64   `json:"delta,omitempty"`
+	Value *float64 `json:"value,omitempty"`
 }
