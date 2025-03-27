@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 )
@@ -42,10 +41,6 @@ func NewMetricUpdateService(
 		txBeginer: txBeginer,
 	}
 }
-
-var (
-	ErrMetricUpdateInternal = errors.New("internal error")
-)
 
 func (s *MetricUpdateService) UpdateBatch(
 	ctx context.Context, metrics []*domain.Metrics,

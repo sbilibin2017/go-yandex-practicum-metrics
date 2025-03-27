@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
 	"testing"
 
@@ -35,9 +36,9 @@ func TestMetricListService_List_Error(t *testing.T) {
 	defer ctrl.Finish()
 	listRepo := NewMockMetricListRepository(ctrl)
 	service := NewMetricListService(listRepo)
-	listRepo.EXPECT().List(gomock.Any()).Return(nil, ErrMetricListInternal)
+	listRepo.EXPECT().List(gomock.Any()).Return(nil, errors.New("test"))
 	result, err := service.List(context.Background())
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, err, ErrMetricListInternal)
+
 }

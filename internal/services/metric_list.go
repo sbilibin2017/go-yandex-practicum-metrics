@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
 )
 
@@ -22,16 +21,12 @@ func NewMetricListService(
 	}
 }
 
-var (
-	ErrMetricListInternal = errors.New("internal error")
-)
-
 func (s *MetricListService) List(
 	ctx context.Context,
 ) ([]*domain.Metrics, error) {
 	existingMetrics, err := s.listRepo.List(ctx)
 	if err != nil {
-		return nil, ErrMetricListInternal
+		return nil, err
 	}
 	var metrics []*domain.Metrics
 	for _, metric := range existingMetrics {
