@@ -3,84 +3,48 @@ package usecases
 import (
 	"context"
 	"go-yandex-practicum-metrics/internal/domain"
-	"go-yandex-practicum-metrics/internal/errors"
-	"strconv"
 )
 
 type MetricUpdatePathService interface {
-	UpdateBatch(ctx context.Context, metrics []*domain.Metrics) ([]*domain.Metrics, error)
+	Update(ctx context.Context, metrics []*domain.Metrics) ([]*domain.Metrics, error)
+}
+
+type MetricUpdateRequester interface {
+	Validate() error
+	ToDomain() []*domain.Metrics
+}
+
+type MetricUpdateResponser interface {
+	ToResponse() *[]byte
 }
 
 type MetricUpdatePathUsecase struct {
-	svc MetricUpdatePathService
+	svc       MetricUpdatePathService
+	requester MetricUpdateRequester
+	responser MetricUpdateResponser
 }
 
-func NewMetricUpdatePathUsecase(svc MetricUpdatePathService) *MetricUpdatePathUsecase {
-	return &MetricUpdatePathUsecase{svc: svc}
+func NewMetricUpdatePathUsecase(
+	svc MetricUpdatePathService,
+	requester MetricUpdateRequester,
+	responser MetricUpdateResponser,
+) *MetricUpdatePathUsecase {
+	return &MetricUpdatePathUsecase{
+		svc:       svc,
+		requester: requester,
+		responser: responser,
+	}
 }
 
-func (uc MetricUpdatePathUsecase) Execute(
-	ctx context.Context, req *MetricUpdatePathRequest,
-) (*MetricUpdatePathResponse, error) {
-	metric, err := req.ToDomain()
+func (uc MetricUpdatePathUsecase) Execute(ctx context.Context) (*[]byte, error) {
+	err := uc.requester.Validate()
 	if err != nil {
 		return nil, err
 	}
-	metricsToSave := []*domain.Metrics{metric}
-	_, err = uc.svc.UpdateBatch(ctx, metricsToSave)
+	metrics := uc.requester.ToDomain()
+	_, err = uc.svc.Update(ctx, metrics)
 	if err != nil {
 		return nil, err
 	}
-	successMessage := MetricUpdatePathResponse(MetricUpdateSuccessMessage)
-	return &successMessage, nil
+	return uc.responser.ToResponse(), nil
 }
-
-type MetricUpdatePathRequest struct {
-	Type  string
-	Name  string
-	Value string
-}
-
-func (r *MetricUpdatePathRequest) ToDomain() (*domain.Metrics, error) {
-	var metricType string
-	switch r.Type {
-	case string(domain.Gauge):
-		metricType = string(domain.Gauge)
-	case string(domain.Counter):
-		metricType = string(domain.Counter)
-	default:
-		return nil, errors.InvalidMetricTypeError
-	}
-
-	if r.Name == "" {
-		return nil, errors.MissingMetricNameError
-	}
-
-	var delta *int64
-	var value *float64
-	switch metricType {
-	case string(domain.Gauge):
-		v, err := strconv.ParseFloat(r.Value, 64)
-		if err != nil {
-			return nil, errors.InvalidMetricValueError
-		}
-		value = &v
-	case string(domain.Counter):
-		v, err := strconv.ParseInt(r.Value, 10, 64)
-		if err != nil {
-			return nil, errors.InvalidMetricValueError
-		}
-		delta = &v
-	}
-
-	return &domain.Metrics{
-		ID:    r.Name,
-		Type:  metricType,
-		Delta: delta,
-		Value: value,
-	}, nil
-}
-
-type MetricUpdatePathResponse []byte
-
-var MetricUpdateSuccessMessage = []byte("Metric updated successfully")
