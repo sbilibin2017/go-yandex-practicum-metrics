@@ -11,44 +11,44 @@ import (
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockDBExecutorEngine is a mock of DBExecutorEngine interface.
-type MockDBExecutorEngine struct {
+// MockExecutor is a mock of Executor interface.
+type MockExecutor struct {
 	ctrl     *gomock.Controller
-	recorder *MockDBExecutorEngineMockRecorder
+	recorder *MockExecutorMockRecorder
 }
 
-// MockDBExecutorEngineMockRecorder is the mock recorder for MockDBExecutorEngine.
-type MockDBExecutorEngineMockRecorder struct {
-	mock *MockDBExecutorEngine
+// MockExecutorMockRecorder is the mock recorder for MockExecutor.
+type MockExecutorMockRecorder struct {
+	mock *MockExecutor
 }
 
-// NewMockDBExecutorEngine creates a new mock instance.
-func NewMockDBExecutorEngine(ctrl *gomock.Controller) *MockDBExecutorEngine {
-	mock := &MockDBExecutorEngine{ctrl: ctrl}
-	mock.recorder = &MockDBExecutorEngineMockRecorder{mock}
+// NewMockExecutor creates a new mock instance.
+func NewMockExecutor(ctrl *gomock.Controller) *MockExecutor {
+	mock := &MockExecutor{ctrl: ctrl}
+	mock.recorder = &MockExecutorMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockDBExecutorEngine) EXPECT() *MockDBExecutorEngineMockRecorder {
+func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 	return m.recorder
 }
 
 // Execute mocks base method.
-func (m *MockDBExecutorEngine) Execute(ctx context.Context, query string, args ...any) bool {
+func (m *MockExecutor) Execute(ctx context.Context, query string, args ...any) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, query}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Execute", varargs...)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockDBExecutorEngineMockRecorder) Execute(ctx, query interface{}, args ...interface{}) *gomock.Call {
+func (mr *MockExecutorMockRecorder) Execute(ctx, query interface{}, args ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, query}, args...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockDBExecutorEngine)(nil).Execute), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), varargs...)
 }

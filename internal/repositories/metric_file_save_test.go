@@ -1,66 +1,78 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSave_SingleMetricSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockEngine := NewMockFileExecutorEngine(ctrl)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "1", Type: domain.Gauge}, &domain.Metrics{ID: "1", Type: domain.Gauge}).Return(true)
-	repo := NewMetricFileSaveBatchRepository(mockEngine)
+func TestSaveMetricsWithNilWriter(t *testing.T) {
+	repo := NewMetricFileSaveBatchRepository(nil)
 	metrics := []*domain.Metrics{
-		{ID: "1", Type: domain.Gauge},
-	}
-	result := repo.Save(context.Background(), metrics)
-	assert.True(t, result)
-}
-
-func TestSave_MultipleMetricsSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockEngine := NewMockFileExecutorEngine(ctrl)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "1", Type: domain.Gauge}, &domain.Metrics{ID: "1", Type: domain.Gauge}).Return(true)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "2", Type: domain.Counter}, &domain.Metrics{ID: "2", Type: domain.Counter}).Return(true)
-	repo := NewMetricFileSaveBatchRepository(mockEngine)
-	metrics := []*domain.Metrics{
-		{ID: "1", Type: domain.Gauge},
-		{ID: "2", Type: domain.Counter},
-	}
-	result := repo.Save(context.Background(), metrics)
-	assert.True(t, result)
-}
-
-func TestSave_MetricExecutionFail(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockEngine := NewMockFileExecutorEngine(ctrl)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "1", Type: domain.Gauge}, &domain.Metrics{ID: "1", Type: domain.Gauge}).Return(false)
-	repo := NewMetricFileSaveBatchRepository(mockEngine)
-	metrics := []*domain.Metrics{
-		{ID: "1", Type: domain.Gauge},
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
 	}
 	result := repo.Save(context.Background(), metrics)
 	assert.False(t, result)
 }
 
-func TestSave_MultipleMetricsWithFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockEngine := NewMockFileExecutorEngine(ctrl)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "1", Type: domain.Gauge}, &domain.Metrics{ID: "1", Type: domain.Gauge}).Return(true)
-	mockEngine.EXPECT().Execute(context.Background(), "", domain.MetricID{ID: "2", Type: domain.Counter}, &domain.Metrics{ID: "2", Type: domain.Counter}).Return(false)
-	repo := NewMetricFileSaveBatchRepository(mockEngine)
+func TestSaveFileMetricsSuccessfully(t *testing.T) {
+	buf := new(bytes.Buffer)
+	repo := NewMetricFileSaveBatchRepository(buf)
 	metrics := []*domain.Metrics{
-		{ID: "1", Type: domain.Gauge},
-		{ID: "2", Type: domain.Counter},
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
+		{
+			ID:    "metric2",
+			Type:  "gauge",
+			Value: ptrFloat64(200),
+		},
+	}
+	result := repo.Save(context.Background(), metrics)
+	assert.True(t, result)
+
+	// Verify the content in the buffer
+	var savedMetrics []*domain.Metrics
+	decoder := json.NewDecoder(buf)
+	for {
+		var metric domain.Metrics
+		if err := decoder.Decode(&metric); err != nil {
+			break
+		}
+		savedMetrics = append(savedMetrics, &metric)
+	}
+	assert.Equal(t, 2, len(savedMetrics))
+	assert.Equal(t, "metric1", savedMetrics[0].ID)
+	assert.Equal(t, "metric2", savedMetrics[1].ID)
+}
+
+func TestSaveMetricsWithWriteError(t *testing.T) {
+	errorWriter := &errorWriter{}
+	repo := NewMetricFileSaveBatchRepository(errorWriter)
+	metrics := []*domain.Metrics{
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
 	}
 	result := repo.Save(context.Background(), metrics)
 	assert.False(t, result)
+}
+
+type errorWriter struct{}
+
+func (ew *errorWriter) Write(p []byte) (n int, err error) {
+	return 0, errors.New("write error")
 }

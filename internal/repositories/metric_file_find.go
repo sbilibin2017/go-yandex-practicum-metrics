@@ -2,23 +2,26 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"go-yandex-practicum-metrics/internal/domain"
+	"io"
 	"sync"
 )
 
-type FileQuerierEngine interface {
-	Query(ctx context.Context, query string, args ...any) ([]any, bool)
-}
-
 type MetricFileFindBatchRepository struct {
-	engine FileQuerierEngine
+	reader io.Reader
+	seeker io.Seeker
 	mu     sync.Mutex
 }
 
 func NewMetricFileFindBatchRepository(
-	engine FileQuerierEngine,
+	reader io.Reader,
+	seeker io.Seeker,
 ) *MetricFileFindBatchRepository {
-	return &MetricFileFindBatchRepository{engine: engine}
+	return &MetricFileFindBatchRepository{
+		reader: reader,
+		seeker: seeker,
+	}
 }
 
 func (repo *MetricFileFindBatchRepository) Find(
@@ -30,17 +33,29 @@ func (repo *MetricFileFindBatchRepository) Find(
 	for _, filter := range filters {
 		filterMap[filter] = struct{}{}
 	}
-	allMetrics, ok := repo.engine.Query(ctx, "")
-	if !ok {
+	if repo.reader == nil {
 		return nil, false
+	}
+	_, err := repo.seeker.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, false
+	}
+	var allMetrics []*domain.Metrics
+	decoder := json.NewDecoder(repo.reader)
+	for {
+		var metric domain.Metrics
+		if err := decoder.Decode(&metric); err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+		}
+		allMetrics = append(allMetrics, &metric)
 	}
 	result := make(map[domain.MetricID]*domain.Metrics)
 	for _, metric := range allMetrics {
-		if m, ok := metric.(*domain.Metrics); ok {
-			metricID := domain.MetricID{ID: m.ID, Type: m.Type}
-			if _, exists := filterMap[metricID]; exists {
-				result[metricID] = m
-			}
+		metricID := domain.MetricID{ID: metric.ID, Type: metric.Type}
+		if _, exists := filterMap[metricID]; exists {
+			result[metricID] = metric
 		}
 	}
 	return result, true

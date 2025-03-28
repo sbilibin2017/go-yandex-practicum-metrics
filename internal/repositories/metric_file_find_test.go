@@ -2,70 +2,112 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"io"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFind_SuccessfulFind(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockEngine := NewMockFileQuerierEngine(ctrl)
-	mockEngine.EXPECT().Query(context.Background(), "").Return([]any{
-		&domain.Metrics{
-			ID:    "1",
-			Type:  domain.Gauge,
-			Delta: ptrToInt64(10),
-			Value: ptrToFloat64(5.5),
-		},
-		&domain.Metrics{
-			ID:    "2",
-			Type:  domain.Counter,
-			Delta: ptrToInt64(20),
-			Value: ptrToFloat64(15.5),
-		},
-	}, true)
-	repo := NewMetricFileFindBatchRepository(mockEngine)
-	filters := []domain.MetricID{
-		{ID: "1", Type: domain.Gauge},
-	}
-	result, ok := repo.Find(context.Background(), filters)
-	assert.True(t, ok)
-	assert.Len(t, result, 1)
-	assert.Equal(t, result[domain.MetricID{ID: "1", Type: domain.Gauge}].ID, "1")
+type mockSeekerReader struct {
+	data   []byte
+	offset int64
 }
 
-func TestFind_QueryFails(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func (m *mockSeekerReader) Read(p []byte) (n int, err error) {
+	n = copy(p, m.data[m.offset:])
+	if n == len(m.data)-int(m.offset) {
+		err = io.EOF
+	}
+	m.offset += int64(n)
+	return n, err
+}
 
-	mockEngine := NewMockFileQuerierEngine(ctrl)
+func (m *mockSeekerReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		m.offset = offset
+	case io.SeekCurrent:
+		m.offset += offset
+	case io.SeekEnd:
+		m.offset = int64(len(m.data)) + offset
+	}
+	return m.offset, nil
+}
 
-	// Simulate the query failure
-	mockEngine.EXPECT().Query(context.Background(), "").Return(nil, false)
-
-	// Repository initialization
-	repo := NewMetricFileFindBatchRepository(mockEngine)
+func TestFileFindMetricsSuccessfully(t *testing.T) {
+	data := `
+		{"id": "metric1", "type": "counter", "value": 100}
+		{"id": "metric2", "type": "counter", "value": 200}
+	`
+	// Use custom mock reader and seeker
+	mock := &mockSeekerReader{data: []byte(data)}
+	repo := NewMetricFileFindBatchRepository(mock, mock)
 
 	filters := []domain.MetricID{
-		{ID: "1", Type: domain.Gauge},
+		{ID: "metric1", Type: "counter"},
 	}
 
-	// Call Find method
-	result, ok := repo.Find(context.Background(), filters)
+	result, success := repo.Find(context.Background(), filters)
 
-	// Assertions
-	assert.False(t, ok)
+	assert.True(t, success)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "metric1", result[domain.MetricID{ID: "metric1", Type: "counter"}].ID)
+}
+
+func TestFindWithNilReader(t *testing.T) {
+	repo := NewMetricFileFindBatchRepository(nil, nil)
+
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+
+	result, success := repo.Find(context.Background(), filters)
+
+	assert.False(t, success)
 	assert.Nil(t, result)
 }
 
-// Helper functions to create pointers to basic types
-func ptrToInt64(i int64) *int64 {
-	return &i
+type mockSeekerError struct{}
+
+func (m *mockSeekerError) Seek(offset int64, whence int) (int64, error) {
+	return 0, errors.New("seek error")
 }
 
-func ptrToFloat64(f float64) *float64 {
-	return &f
+func (m *mockSeekerError) Read(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func TestFindWithSeekError(t *testing.T) {
+	mockReader := &mockSeekerError{}
+	repo := NewMetricFileFindBatchRepository(mockReader, mockReader)
+
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+
+	result, success := repo.Find(context.Background(), filters)
+
+	assert.False(t, success)
+	assert.Nil(t, result)
+}
+
+func TestFindWithEOF(t *testing.T) {
+	data := `
+		{"id": "metric1", "type": "counter", "value": 100}
+		{"id": "metric2", "type": "counter", "value": 200}
+	`
+	mock := &mockSeekerReader{data: []byte(data)}
+	repo := NewMetricFileFindBatchRepository(mock, mock)
+
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+
+	result, success := repo.Find(context.Background(), filters)
+
+	assert.True(t, success)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "metric1", result[domain.MetricID{ID: "metric1", Type: "counter"}].ID)
 }

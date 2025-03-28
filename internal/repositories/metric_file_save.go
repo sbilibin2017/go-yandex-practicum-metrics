@@ -2,23 +2,21 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"go-yandex-practicum-metrics/internal/domain"
+	"io"
 	"sync"
 )
 
-type FileExecutorEngine interface {
-	Execute(ctx context.Context, query string, args ...any) bool
-}
-
 type MetricFileSaveBatchRepository struct {
-	engine FileExecutorEngine
+	writer io.Writer
 	mu     sync.Mutex
 }
 
 func NewMetricFileSaveBatchRepository(
-	engine FileExecutorEngine,
+	writer io.Writer,
 ) *MetricFileSaveBatchRepository {
-	return &MetricFileSaveBatchRepository{engine: engine}
+	return &MetricFileSaveBatchRepository{writer: writer}
 }
 
 func (repo *MetricFileSaveBatchRepository) Save(
@@ -26,9 +24,12 @@ func (repo *MetricFileSaveBatchRepository) Save(
 ) bool {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
+	if repo.writer == nil {
+		return false
+	}
+	encoder := json.NewEncoder(repo.writer)
 	for _, metric := range metrics {
-		ok := repo.engine.Execute(ctx, "", domain.MetricID{ID: metric.ID, Type: metric.Type}, metric)
-		if !ok {
+		if err := encoder.Encode(metric); err != nil {
 			return false
 		}
 	}

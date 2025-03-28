@@ -2,26 +2,22 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 	"strings"
 )
 
-type DBScannerEngine interface {
-	Scan(ctx context.Context, query string, args ...any) (map[any]any, bool)
-}
-
-type DBQuerierEngine interface {
-	Query(ctx context.Context, query string, args ...any) (DBScannerEngine, bool)
+type Querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type MetricDBFindBatchRepository struct {
-	q DBQuerierEngine
-	s DBScannerEngine
+	q Querier
 }
 
-func NewMetricDBFindBatchRepository(q DBQuerierEngine, s DBScannerEngine) *MetricDBFindBatchRepository {
-	return &MetricDBFindBatchRepository{q: q, s: s}
+func NewMetricDBFindBatchRepository(q Querier) *MetricDBFindBatchRepository {
+	return &MetricDBFindBatchRepository{q: q}
 }
 
 var findBatchQueryTemplate = "SELECT id, type, delta, value FROM metrics WHERE %s"
@@ -32,7 +28,7 @@ func buildFindQuery(filters []domain.MetricID) (string, []any) {
 	if len(filters) > 0 {
 		for i, filter := range filters {
 			conditions = append(conditions, fmt.Sprintf("(id = $%d AND type = $%d)", i*2+1, i*2+2))
-			args = append(args, filter.ID, filter.Type)
+			args = append(args, filter.ID, string(filter.Type))
 		}
 	} else {
 		args = []any{}
@@ -45,25 +41,21 @@ func (repo *MetricDBFindBatchRepository) FindBatch(
 	ctx context.Context, filters []domain.MetricID,
 ) (map[domain.MetricID]*domain.Metrics, bool) {
 	query, args := buildFindQuery(filters)
-	scannerEngine, ok := repo.q.Query(ctx, query, args...)
-	if !ok {
+	rows, err := repo.q.QueryContext(ctx, query, args...)
+	if err != nil {
 		return nil, false
 	}
+	defer rows.Close()
 	results := make(map[domain.MetricID]*domain.Metrics)
-	scannedResults, ok := scannerEngine.Scan(ctx, query, args...)
-	if !ok {
-		return nil, false
-	}
-	for _, row := range scannedResults {
-		row, _ := row.(map[string]any)
+	for rows.Next() {
 		var m domain.Metrics
-		m.ID = row["id"].(string)
-		m.Type = domain.MetricType(row["type"].(string))
-		delta := row["delta"].(int64)
-		m.Delta = &delta
-		value := row["value"].(float64)
-		m.Value = &value
+		if err := rows.Scan(&m.ID, &m.Type, &m.Delta, &m.Value); err != nil {
+			return nil, false
+		}
 		results[domain.MetricID{ID: m.ID, Type: m.Type}] = &m
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false
 	}
 	return results, true
 }

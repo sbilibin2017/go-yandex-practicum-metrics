@@ -5,65 +5,90 @@ import (
 	"go-yandex-practicum-metrics/internal/domain"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFind_SingleMetricFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockEngine := NewMockMemoryQuerierEngine(ctrl)
-	mockEngine.EXPECT().Query(context.Background(), "").Return([]any{
-		&domain.Metrics{ID: "1", Type: domain.Gauge},
-	}, true)
-
-	repo := NewMetricMemoryFindBatchRepository(mockEngine)
-	filters := []domain.MetricID{{ID: "1", Type: domain.Gauge}}
-
-	result, ok := repo.Find(context.Background(), filters)
-
-	assert.True(t, ok)
-	assert.Len(t, result, 1)
-	assert.Equal(t, "1", result[domain.MetricID{ID: "1", Type: domain.Gauge}].ID)
-}
-
-func TestFind_MultipleMetricsFound(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockEngine := NewMockMemoryQuerierEngine(ctrl)
-	mockEngine.EXPECT().Query(context.Background(), "").Return([]any{
-		&domain.Metrics{ID: "1", Type: domain.Gauge},
-		&domain.Metrics{ID: "2", Type: domain.Counter},
-	}, true)
-
-	repo := NewMetricMemoryFindBatchRepository(mockEngine)
-	filters := []domain.MetricID{
-		{ID: "1", Type: domain.Gauge},
-		{ID: "2", Type: domain.Counter},
+func TestFindMetricsSuccessfully(t *testing.T) {
+	data := make(map[domain.MetricID]*domain.Metrics)
+	repo := NewMetricMemoryFindBatchRepository(data)
+	metrics := []*domain.Metrics{
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
+		{
+			ID:    "metric2",
+			Type:  "gauge",
+			Value: ptrFloat64(200),
+		},
 	}
-
-	result, ok := repo.Find(context.Background(), filters)
-
-	assert.True(t, ok)
-	assert.Len(t, result, 2)
-	assert.Equal(t, "1", result[domain.MetricID{ID: "1", Type: domain.Gauge}].ID)
-	assert.Equal(t, "2", result[domain.MetricID{ID: "2", Type: domain.Counter}].ID)
+	data[domain.MetricID{ID: "metric1", Type: "counter"}] = metrics[0]
+	data[domain.MetricID{ID: "metric2", Type: "gauge"}] = metrics[1]
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+	result, success := repo.Find(context.Background(), filters)
+	assert.True(t, success)
+	assert.Equal(t, 1, len(result))
+	assert.Contains(t, result, domain.MetricID{ID: "metric1", Type: "counter"})
 }
 
-func TestFind_QueryFailed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestFindNoMatchingMetrics(t *testing.T) {
+	data := make(map[domain.MetricID]*domain.Metrics)
+	repo := NewMetricMemoryFindBatchRepository(data)
+	metrics := []*domain.Metrics{
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
+		{
+			ID:    "metric2",
+			Type:  "gauge",
+			Value: ptrFloat64(200),
+		},
+	}
+	data[domain.MetricID{ID: "metric1", Type: "counter"}] = metrics[0]
+	data[domain.MetricID{ID: "metric2", Type: "gauge"}] = metrics[1]
+	filters := []domain.MetricID{
+		{ID: "metric3", Type: "counter"},
+	}
+	result, success := repo.Find(context.Background(), filters)
+	assert.True(t, success)
+	assert.Equal(t, 0, len(result))
+}
 
-	mockEngine := NewMockMemoryQuerierEngine(ctrl)
-	mockEngine.EXPECT().Query(context.Background(), "").Return(nil, false)
-
-	repo := NewMetricMemoryFindBatchRepository(mockEngine)
-	filters := []domain.MetricID{{ID: "1", Type: domain.Gauge}}
-
-	result, ok := repo.Find(context.Background(), filters)
-
-	assert.False(t, ok)
-	assert.Nil(t, result)
+func TestFindMultipleMetrics(t *testing.T) {
+	data := make(map[domain.MetricID]*domain.Metrics)
+	repo := NewMetricMemoryFindBatchRepository(data)
+	metrics := []*domain.Metrics{
+		{
+			ID:    "metric1",
+			Type:  "counter",
+			Value: ptrFloat64(100),
+		},
+		{
+			ID:    "metric2",
+			Type:  "gauge",
+			Value: ptrFloat64(200),
+		},
+		{
+			ID:    "metric3",
+			Type:  "counter",
+			Value: ptrFloat64(300),
+		},
+	}
+	data[domain.MetricID{ID: "metric1", Type: "counter"}] = metrics[0]
+	data[domain.MetricID{ID: "metric2", Type: "gauge"}] = metrics[1]
+	data[domain.MetricID{ID: "metric3", Type: "counter"}] = metrics[2]
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+		{ID: "metric2", Type: "gauge"},
+	}
+	result, success := repo.Find(context.Background(), filters)
+	assert.True(t, success)
+	assert.Equal(t, 2, len(result))
+	assert.Contains(t, result, domain.MetricID{ID: "metric1", Type: "counter"})
+	assert.Contains(t, result, domain.MetricID{ID: "metric2", Type: "gauge"})
 }

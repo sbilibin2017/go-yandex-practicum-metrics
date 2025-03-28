@@ -6,19 +6,15 @@ import (
 	"sync"
 )
 
-type MemoryQuerierEngine[K comparable, V any] interface {
-	Query(ctx context.Context, query string, args ...any) ([]any, bool)
-}
-
 type MetricMemoryFindBatchRepository struct {
-	engine MemoryQuerierEngine[domain.MetricID, *domain.Metrics]
-	mu     sync.Mutex
+	data map[domain.MetricID]*domain.Metrics
+	mu   sync.Mutex
 }
 
 func NewMetricMemoryFindBatchRepository(
-	engine MemoryQuerierEngine[domain.MetricID, *domain.Metrics],
+	data map[domain.MetricID]*domain.Metrics,
 ) *MetricMemoryFindBatchRepository {
-	return &MetricMemoryFindBatchRepository{engine: engine}
+	return &MetricMemoryFindBatchRepository{data: data}
 }
 
 func (repo *MetricMemoryFindBatchRepository) Find(
@@ -30,17 +26,10 @@ func (repo *MetricMemoryFindBatchRepository) Find(
 	for _, filter := range filters {
 		filterMap[filter] = struct{}{}
 	}
-	allMetrics, ok := repo.engine.Query(ctx, "")
-	if !ok {
-		return nil, false
-	}
 	result := make(map[domain.MetricID]*domain.Metrics)
-	for _, metric := range allMetrics {
-		if m, ok := metric.(*domain.Metrics); ok {
-			metricID := domain.MetricID{ID: m.ID, Type: m.Type}
-			if _, exists := filterMap[metricID]; exists {
-				result[metricID] = m
-			}
+	for metricID, metric := range repo.data {
+		if _, exists := filterMap[metricID]; exists {
+			result[metricID] = metric
 		}
 	}
 	return result, true

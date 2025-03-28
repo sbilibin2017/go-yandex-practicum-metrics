@@ -6,93 +6,51 @@ package repositories
 
 import (
 	context "context"
+	sql "database/sql"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockDBScannerEngine is a mock of DBScannerEngine interface.
-type MockDBScannerEngine struct {
+// MockQuerier is a mock of Querier interface.
+type MockQuerier struct {
 	ctrl     *gomock.Controller
-	recorder *MockDBScannerEngineMockRecorder
+	recorder *MockQuerierMockRecorder
 }
 
-// MockDBScannerEngineMockRecorder is the mock recorder for MockDBScannerEngine.
-type MockDBScannerEngineMockRecorder struct {
-	mock *MockDBScannerEngine
+// MockQuerierMockRecorder is the mock recorder for MockQuerier.
+type MockQuerierMockRecorder struct {
+	mock *MockQuerier
 }
 
-// NewMockDBScannerEngine creates a new mock instance.
-func NewMockDBScannerEngine(ctrl *gomock.Controller) *MockDBScannerEngine {
-	mock := &MockDBScannerEngine{ctrl: ctrl}
-	mock.recorder = &MockDBScannerEngineMockRecorder{mock}
+// NewMockQuerier creates a new mock instance.
+func NewMockQuerier(ctrl *gomock.Controller) *MockQuerier {
+	mock := &MockQuerier{ctrl: ctrl}
+	mock.recorder = &MockQuerierMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockDBScannerEngine) EXPECT() *MockDBScannerEngineMockRecorder {
+func (m *MockQuerier) EXPECT() *MockQuerierMockRecorder {
 	return m.recorder
 }
 
-// Scan mocks base method.
-func (m *MockDBScannerEngine) Scan(ctx context.Context, query string, args ...any) (map[any]any, bool) {
+// QueryContext mocks base method.
+func (m *MockQuerier) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, query}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "Scan", varargs...)
-	ret0, _ := ret[0].(map[any]any)
-	ret1, _ := ret[1].(bool)
+	ret := m.ctrl.Call(m, "QueryContext", varargs...)
+	ret0, _ := ret[0].(*sql.Rows)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Scan indicates an expected call of Scan.
-func (mr *MockDBScannerEngineMockRecorder) Scan(ctx, query interface{}, args ...interface{}) *gomock.Call {
+// QueryContext indicates an expected call of QueryContext.
+func (mr *MockQuerierMockRecorder) QueryContext(ctx, query interface{}, args ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, query}, args...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockDBScannerEngine)(nil).Scan), varargs...)
-}
-
-// MockDBQuerierEngine is a mock of DBQuerierEngine interface.
-type MockDBQuerierEngine struct {
-	ctrl     *gomock.Controller
-	recorder *MockDBQuerierEngineMockRecorder
-}
-
-// MockDBQuerierEngineMockRecorder is the mock recorder for MockDBQuerierEngine.
-type MockDBQuerierEngineMockRecorder struct {
-	mock *MockDBQuerierEngine
-}
-
-// NewMockDBQuerierEngine creates a new mock instance.
-func NewMockDBQuerierEngine(ctrl *gomock.Controller) *MockDBQuerierEngine {
-	mock := &MockDBQuerierEngine{ctrl: ctrl}
-	mock.recorder = &MockDBQuerierEngineMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockDBQuerierEngine) EXPECT() *MockDBQuerierEngineMockRecorder {
-	return m.recorder
-}
-
-// Query mocks base method.
-func (m *MockDBQuerierEngine) Query(ctx context.Context, query string, args ...any) (DBScannerEngine, bool) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, query}
-	for _, a := range args {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Query", varargs...)
-	ret0, _ := ret[0].(DBScannerEngine)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// Query indicates an expected call of Query.
-func (mr *MockDBQuerierEngineMockRecorder) Query(ctx, query interface{}, args ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, query}, args...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockDBQuerierEngine)(nil).Query), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryContext", reflect.TypeOf((*MockQuerier)(nil).QueryContext), varargs...)
 }

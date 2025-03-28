@@ -2,10 +2,12 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 	"testing"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,35 +19,27 @@ func TestBuildFindQuery(t *testing.T) {
 		expectedArgs  []any
 	}{
 		{
-			name: "single filter with Gauge type",
-			filters: []domain.MetricID{
-				{ID: "1", Type: domain.Gauge},
-			},
-			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE (id = $1 AND type = $2)",
-			expectedArgs:  []any{"1", domain.Gauge},
-		},
-		{
-			name: "single filter with Counter type",
-			filters: []domain.MetricID{
-				{ID: "2", Type: domain.Counter},
-			},
-			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE (id = $1 AND type = $2)",
-			expectedArgs:  []any{"2", domain.Counter},
-		},
-		{
-			name: "multiple filters with mixed types",
-			filters: []domain.MetricID{
-				{ID: "1", Type: domain.Gauge},
-				{ID: "2", Type: domain.Counter},
-			},
-			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE (id = $1 AND type = $2) OR (id = $3 AND type = $4)",
-			expectedArgs:  []any{"1", domain.Gauge, "2", domain.Counter},
-		},
-		{
-			name:          "empty filters",
+			name:          "No filters",
 			filters:       []domain.MetricID{},
 			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE ",
 			expectedArgs:  []any{},
+		},
+		{
+			name: "Single filter",
+			filters: []domain.MetricID{
+				{ID: "metric1", Type: "counter"},
+			},
+			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE (id = $1 AND type = $2)",
+			expectedArgs:  []any{"metric1", "counter"},
+		},
+		{
+			name: "Multiple filters",
+			filters: []domain.MetricID{
+				{ID: "metric1", Type: "counter"},
+				{ID: "metric2", Type: "gauge"},
+			},
+			expectedQuery: "SELECT id, type, delta, value FROM metrics WHERE (id = $1 AND type = $2) OR (id = $3 AND type = $4)",
+			expectedArgs:  []any{"metric1", "counter", "metric2", "gauge"},
 		},
 	}
 
@@ -58,89 +52,89 @@ func TestBuildFindQuery(t *testing.T) {
 	}
 }
 
-func TestFindBatch(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	ptrToInt64 := func(i int64) *int64 {
-		return &i
+func TestFindBatch_Success(t *testing.T) {
+	// Создаем mock для базы данных
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Не удалось создать mock для базы данных: %v", err)
 	}
-	ptrToFloat64 := func(f float64) *float64 {
-		return &f
+	defer db.Close()
+	repo := NewMetricDBFindBatchRepository(db)
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: domain.Counter},
+		{ID: "metric2", Type: domain.Gauge},
 	}
-	mockDBQuerier := NewMockDBQuerierEngine(ctrl)
-	mockDBScanner := NewMockDBScannerEngine(ctrl)
-	repo := NewMetricDBFindBatchRepository(mockDBQuerier, mockDBScanner)
-	tests := []struct {
-		name          string
-		filters       []domain.MetricID
-		mockQueryResp DBScannerEngine
-		mockScanResp  map[any]any
-		mockQueryOk   bool
-		mockScanOk    bool
-		expectedRes   map[domain.MetricID]*domain.Metrics
-		expectedOk    bool
-	}{
-		{
-			name: "successful query and scan",
-			filters: []domain.MetricID{
-				{ID: "1", Type: domain.Gauge},
-			},
-			mockQueryResp: mockDBScanner,
-			mockScanResp: map[any]any{
-				"row1": map[string]any{
-					"id":    "1",
-					"type":  "gauge",
-					"delta": int64(10),
-					"value": float64(5.5),
-				},
-			},
-			mockQueryOk: true,
-			mockScanOk:  true,
-			expectedRes: map[domain.MetricID]*domain.Metrics{
-				{"1", domain.Gauge}: {
-					ID:    "1",
-					Type:  domain.Gauge,
-					Delta: ptrToInt64(10),
-					Value: ptrToFloat64(5.5),
-				},
-			},
-			expectedOk: true,
-		},
-		{
-			name:          "failed query",
-			filters:       []domain.MetricID{{ID: "2", Type: domain.Counter}},
-			mockQueryResp: nil,
-			mockQueryOk:   false,
-			expectedRes:   nil,
-			expectedOk:    false,
-		},
-		{
-			name: "successful query but failed scan",
-			filters: []domain.MetricID{
-				{ID: "3", Type: domain.Counter},
-			},
-			mockQueryResp: mockDBScanner,
-			mockScanResp:  nil,
-			mockQueryOk:   true,
-			mockScanOk:    false,
-			expectedRes:   nil,
-			expectedOk:    false,
-		},
-	}
+	rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+		AddRow("metric1", "counter", 100, 1.23).
+		AddRow("metric2", "gauge", 200, 2.34)
+	mock.ExpectQuery("SELECT id, type, delta, value FROM metrics WHERE").
+		WithArgs("metric1", "counter", "metric2", "gauge").
+		WillReturnRows(rows)
+	result, ok := repo.FindBatch(context.Background(), filters)
+	assert.True(t, ok)
+	assert.Len(t, result, 2)
+	assert.Equal(t, &domain.Metrics{
+		ID:    "metric1",
+		Type:  domain.Counter,
+		Delta: int64Pointer(100),
+		Value: float64Pointer(1.23),
+	}, result[domain.MetricID{ID: "metric1", Type: domain.Counter}])
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockDBQuerier.EXPECT().
-				Query(context.Background(), gomock.Any(), gomock.Any()).
-				Return(tt.mockQueryResp, tt.mockQueryOk)
-			if tt.mockQueryOk {
-				mockDBScanner.EXPECT().
-					Scan(context.Background(), gomock.Any(), gomock.Any()).
-					Return(tt.mockScanResp, tt.mockScanOk)
-			}
-			result, ok := repo.FindBatch(context.Background(), tt.filters)
-			assert.Equal(t, tt.expectedRes, result)
-			assert.Equal(t, tt.expectedOk, ok)
-		})
+	assert.Equal(t, &domain.Metrics{
+		ID:    "metric2",
+		Type:  domain.Gauge,
+		Delta: int64Pointer(200),
+		Value: float64Pointer(2.34),
+	}, result[domain.MetricID{ID: "metric2", Type: domain.Gauge}])
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Невыполненные ожидания: %v", err)
+	}
+}
+
+func int64Pointer(i int64) *int64 {
+	return &i
+}
+
+func TestFindBatch_Error_QueryContext(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Не удалось создать mock для базы данных: %v", err)
+	}
+	defer db.Close()
+	repo := NewMetricDBFindBatchRepository(db)
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+	mock.ExpectQuery("SELECT id, type, delta, value FROM metrics WHERE").
+		WithArgs("metric1", "counter").
+		WillReturnError(sql.ErrConnDone)
+	result, ok := repo.FindBatch(context.Background(), filters)
+	assert.False(t, ok)
+	assert.Nil(t, result)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Невыполненные ожидания: %v", err)
+	}
+}
+
+func TestFindBatch_Error_Scan(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Не удалось создать mock для базы данных: %v", err)
+	}
+	defer db.Close()
+	repo := NewMetricDBFindBatchRepository(db)
+	filters := []domain.MetricID{
+		{ID: "metric1", Type: "counter"},
+	}
+	mock.ExpectQuery("SELECT id, type, delta, value FROM metrics WHERE").
+		WithArgs("metric1", "counter").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+			AddRow("metric1", "counter", nil, nil)).
+		WillReturnError(fmt.Errorf("Scan error"))
+	result, ok := repo.FindBatch(context.Background(), filters)
+	assert.False(t, ok)
+	assert.Nil(t, result)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("Невыполненные ожидания: %v", err)
 	}
 }
