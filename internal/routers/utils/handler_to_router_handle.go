@@ -6,8 +6,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func WrapHandler(h http.HandlerFunc) httprouter.Handle {
+func HandlerToRouterHandle(h http.Handler) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		h(w, r)
+		h.ServeHTTP(w, r)
 	}
 }
