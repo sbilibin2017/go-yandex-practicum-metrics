@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 	"strings"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type Querier interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
-
 type MetricDBFindBatchRepository struct {
-	q Querier
+	db *sql.DB
 }
 
-func NewMetricDBFindBatchRepository(q Querier) *MetricDBFindBatchRepository {
-	return &MetricDBFindBatchRepository{q: q}
+func NewMetricDBFindBatchRepository(db *sql.DB) *MetricDBFindBatchRepository {
+	return &MetricDBFindBatchRepository{db: db}
 }
 
 var findBatchQueryTemplate = "SELECT id, type, delta, value FROM metrics WHERE %s"
@@ -41,7 +39,7 @@ func (repo *MetricDBFindBatchRepository) FindBatch(
 	ctx context.Context, filters []domain.MetricID,
 ) (map[domain.MetricID]*domain.Metrics, bool) {
 	query, args := buildFindQuery(filters)
-	rows, err := repo.q.QueryContext(ctx, query, args...)
+	rows, err := repo.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, false
 	}

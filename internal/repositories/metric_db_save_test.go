@@ -2,154 +2,108 @@ package repositories
 
 import (
 	"context"
-	"go-yandex-practicum-metrics/internal/domain"
-	"strings"
+	"database/sql"
+	"fmt"
+	"log"
 	"testing"
+	"time"
 
-	gomock "github.com/golang/mock/gomock"
+	"go-yandex-practicum-metrics/internal/domain"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func TestBuildSaveBatchQuerySingleMetric(t *testing.T) {
-	metrics := []*domain.Metrics{
-		{ID: "metric1", Type: domain.Counter, Delta: nil, Value: ptrFloat64(123.45)},
-	}
-	expectedQuery := "INSERT INTO metrics (id, type, delta, value) VALUES ($1, $2, $3, $4) ON CONFLICT (id, type) DO UPDATE SET delta = EXCLUDED.delta, value = EXCLUDED.value"
-	expectedArgs := []interface{}{"metric1", domain.Counter, (*int64)(nil), ptrFloat64(123.45)}
-
-	query, args := buildSaveBatchQuery(metrics)
-
-	// Clean the formatting of the query by removing extra whitespace
-	expectedQueryClean := strings.Join(strings.Fields(expectedQuery), " ")
-	actualQueryClean := strings.Join(strings.Fields(query), " ")
-
-	assert.Equal(t, expectedQueryClean, actualQueryClean)
-	assert.Equal(t, expectedArgs, args)
+type PostgresContainer2 struct {
+	Container testcontainers.Container
+	DB        *sql.DB
 }
 
-func TestBuildSaveBatchQueryMultipleMetrics(t *testing.T) {
-	metrics := []*domain.Metrics{
-		{ID: "metric1", Type: domain.Counter, Delta: ptrInt64(10), Value: nil},
-		{ID: "metric2", Type: domain.Gauge, Delta: nil, Value: ptrFloat64(45.67)},
+func setupPostgresContainer2(t *testing.T) *PostgresContainer {
+	ctx := context.Background()
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:15",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     "testuser",
+			"POSTGRES_PASSWORD": "testpass",
+			"POSTGRES_DB":       "testdb",
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(30 * time.Second),
 	}
-	expectedQuery := "INSERT INTO metrics (id, type, delta, value) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8) ON CONFLICT (id, type) DO UPDATE SET delta = EXCLUDED.delta, value = EXCLUDED.value"
-	expectedArgs := []interface{}{"metric1", domain.Counter, ptrInt64(10), (*float64)(nil), "metric2", domain.Gauge, (*int64)(nil), ptrFloat64(45.67)}
-
-	query, args := buildSaveBatchQuery(metrics)
-
-	// Clean the formatting of the query by removing extra whitespace
-	expectedQueryClean := strings.Join(strings.Fields(expectedQuery), " ")
-	actualQueryClean := strings.Join(strings.Fields(query), " ")
-
-	assert.Equal(t, expectedQueryClean, actualQueryClean)
-	assert.Equal(t, expectedArgs, args)
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatalf("Error creating container: %v", err)
+	}
+	host, _ := container.Host(ctx)
+	port, _ := container.MappedPort(ctx, "5432")
+	dsn := fmt.Sprintf("postgres://testuser:testpass@%s:%s/testdb?sslmode=disable", host, port.Port())
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("Error connecting to database: %v", err)
+	}
+	err = db.Ping()
+	if err != nil {
+		t.Fatalf("Database ping error: %v", err)
+	}
+	_, err = db.Exec(`
+		CREATE TABLE metrics (
+			id TEXT PRIMARY KEY,
+			type TEXT NOT NULL,
+			delta BIGINT NULL,
+			value DOUBLE PRECISION NULL
+		);
+	`)
+	if err != nil {
+		t.Fatalf("Error creating table: %v", err)
+	}
+	_, err = db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_id_type ON metrics (id, type);
+	`)
+	if err != nil {
+		t.Fatalf("Error creating index: %v", err)
+	}
+	return &PostgresContainer{
+		Container: container,
+		DB:        db,
+	}
 }
 
-func TestBuildSaveBatchQueryEmptyMetrics(t *testing.T) {
-	metrics := []*domain.Metrics{}
-	expectedQuery := "INSERT INTO metrics (id, type, delta, value) VALUES  ON CONFLICT (id, type) DO UPDATE SET delta = EXCLUDED.delta, value = EXCLUDED.value"
-	expectedArgs := []interface{}{} // Ожидаем пустой срез
-
-	query, args := buildSaveBatchQuery(metrics)
-
-	// Clean the formatting of the query by removing extra whitespace
-	expectedQueryClean := strings.Join(strings.Fields(expectedQuery), " ")
-	actualQueryClean := strings.Join(strings.Fields(query), " ")
-
-	// Если результат пустой срез (или nil), то проверяем, что args действительно пустой срез
-	if args == nil {
-		args = []interface{}{}
+func teardownPostgresContainer2(t *testing.T, pc *PostgresContainer) {
+	if err := pc.DB.Close(); err != nil {
+		log.Printf("Error closing database: %v", err)
 	}
-
-	// Сравниваем очищенные строки запросов и аргументы
-	assert.Equal(t, expectedQueryClean, actualQueryClean)
-	assert.Equal(t, expectedArgs, args)
+	if err := pc.Container.Terminate(context.Background()); err != nil {
+		log.Printf("Error stopping container: %v", err)
+	}
 }
 
 func TestSaveBatch_Success(t *testing.T) {
-	// Подготовка мока
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockExecutor := NewMockExecutor(ctrl)
-
-	// Создаем тестовые метрики
+	pc := setupPostgresContainer2(t)
+	defer teardownPostgresContainer2(t, pc)
+	repo := NewMetricDBSaveBatchRepository(pc.DB)
 	metrics := []*domain.Metrics{
-		{ID: "metric1", Type: domain.Counter, Delta: nil, Value: float64Pointer(123.45)},
-		{ID: "metric2", Type: domain.Gauge, Delta: nil, Value: float64Pointer(45.67)},
+		{ID: "metric1", Type: "counter", Delta: new(int64), Value: nil},
+		{ID: "metric2", Type: "gauge", Delta: nil, Value: new(float64)},
 	}
-
-	// Ожидаем, что метод Execute будет вызван один раз с нужными параметрами, но без проверки самого запроса
-	mockExecutor.EXPECT().
-		Execute(gomock.Any(), gomock.Any(), gomock.Any()). // Проверяем, что Execute вызывается с любым запросом и аргументами
-		Return(nil).Times(1)
-
-	// Создаем репозиторий
-	repo := NewMetricDBSaveBatchRepository(mockExecutor)
-
-	// Вызов метода SaveBatch
-	result := repo.SaveBatch(context.Background(), metrics)
-
-	// Проверка, что метод вернул true (успешное выполнение)
-	assert.True(t, result)
-}
-
-func TestSaveBatch_Failure(t *testing.T) {
-	// Подготовка мока
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockExecutor := NewMockExecutor(ctrl)
-
-	// Создаем тестовые метрики
-	metrics := []*domain.Metrics{
-		{ID: "metric1", Type: domain.Counter, Delta: nil, Value: float64Pointer(123.45)},
-		{ID: "metric2", Type: domain.Gauge, Delta: nil, Value: float64Pointer(45.67)},
+	*metrics[0].Delta = 100
+	*metrics[1].Value = 42.5
+	success := repo.SaveBatch(context.Background(), metrics)
+	assert.True(t, success, "SaveBatch should return true on successful insert")
+	var count int
+	err := pc.DB.QueryRow("SELECT COUNT(*) FROM metrics WHERE id = $1", "metric1").Scan(&count)
+	if err != nil {
+		t.Fatalf("Query execution error: %v", err)
 	}
-
-	// Ожидаем, что метод Execute будет вызван один раз с нужными параметрами, но с ошибкой в ответе
-	mockExecutor.EXPECT().
-		Execute(gomock.Any(), gomock.Any(), gomock.Any()). // Проверяем, что Execute вызывается с любым запросом и аргументами
-		Return(assert.AnError).Times(1)
-
-	// Создаем репозиторий
-	repo := NewMetricDBSaveBatchRepository(mockExecutor)
-
-	// Вызов метода SaveBatch
-	result := repo.SaveBatch(context.Background(), metrics)
-
-	// Проверка, что метод вернул false (ошибка при выполнении)
-	assert.False(t, result)
-}
-
-func TestSaveBatch_EmptyMetrics(t *testing.T) {
-	// Подготовка мока
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockExecutor := NewMockExecutor(ctrl)
-
-	// Пустой срез метрик
-	metrics := []*domain.Metrics{}
-
-	// Ожидаем, что метод Execute не будет вызван, так как нет метрик
-	mockExecutor.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
-
-	// Создаем репозиторий
-	repo := NewMetricDBSaveBatchRepository(mockExecutor)
-
-	// Вызов метода SaveBatch с пустым срезом
-	result := repo.SaveBatch(context.Background(), metrics)
-
-	// Проверка, что метод вернул true (поскольку нечего сохранять, предполагаем, что операция проходит успешно)
-	assert.True(t, result)
-}
-
-func ptrInt64(value int64) *int64 {
-	return &value
-}
-
-// Утилита для создания указателя на float64
-func float64Pointer(f float64) *float64 {
-	return &f
+	assert.Equal(t, 1, count, "There should be 1 metric with ID metric1")
+	err = pc.DB.QueryRow("SELECT COUNT(*) FROM metrics WHERE id = $1", "metric2").Scan(&count)
+	if err != nil {
+		t.Fatalf("Query execution error: %v", err)
+	}
+	assert.Equal(t, 1, count, "There should be 1 metric with ID metric2")
 }

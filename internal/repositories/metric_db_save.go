@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 	"strings"
@@ -9,12 +10,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type Executor interface {
-	Execute(ctx context.Context, query string, args ...any) error
-}
-
 type MetricDBSaveBatchRepository struct {
-	e Executor
+	db *sql.DB
 }
 
 var saveBatchQueryTemplate = `
@@ -37,8 +34,8 @@ func buildSaveBatchQuery(metrics []*domain.Metrics) (string, []any) {
 	return query, args
 }
 
-func NewMetricDBSaveBatchRepository(e Executor) *MetricDBSaveBatchRepository {
-	return &MetricDBSaveBatchRepository{e: e}
+func NewMetricDBSaveBatchRepository(db *sql.DB) *MetricDBSaveBatchRepository {
+	return &MetricDBSaveBatchRepository{db: db}
 }
 
 func (repo *MetricDBSaveBatchRepository) SaveBatch(
@@ -48,6 +45,9 @@ func (repo *MetricDBSaveBatchRepository) SaveBatch(
 		return true
 	}
 	query, args := buildSaveBatchQuery(metrics)
-	err := repo.e.Execute(ctx, query, args...)
+	_, err := repo.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return false
+	}
 	return err == nil
 }
