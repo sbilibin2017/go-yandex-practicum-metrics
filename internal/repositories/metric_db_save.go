@@ -2,16 +2,17 @@ package repositories
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
 	"strings"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+type DBExecutorEngine interface {
+	Execute(ctx context.Context, query string, args ...any) bool
+}
+
 type MetricDBSaveBatchRepository struct {
-	db *sql.DB
+	engine DBExecutorEngine
 }
 
 var saveBatchQueryTemplate = `
@@ -34,17 +35,13 @@ func buildSaveBatchQuery(metrics []*domain.Metrics) (string, []any) {
 	return query, args
 }
 
-func NewMetricDBSaveBatchRepository(db *sql.DB) *MetricDBSaveBatchRepository {
-	return &MetricDBSaveBatchRepository{db: db}
+func NewMetricDBSaveBatchRepository(engine DBExecutorEngine) *MetricDBSaveBatchRepository {
+	return &MetricDBSaveBatchRepository{engine: engine}
 }
 
 func (repo *MetricDBSaveBatchRepository) SaveBatch(
 	ctx context.Context, metrics []*domain.Metrics,
-) error {
-	if len(metrics) == 0 {
-		return nil
-	}
+) bool {
 	query, args := buildSaveBatchQuery(metrics)
-	_, err := repo.db.ExecContext(ctx, query, args...)
-	return err
+	return repo.engine.Execute(ctx, query, args...)
 }

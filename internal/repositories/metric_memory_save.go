@@ -6,22 +6,22 @@ import (
 	"sync"
 )
 
-type FileExecutorEngine interface {
+type MemoryExecutorEngine[K comparable, V any] interface {
 	Execute(ctx context.Context, query string, args ...any) bool
 }
 
-type MetricFileSaveBatchRepository struct {
-	engine FileExecutorEngine
+type MetricMemorySaveBatchRepository struct {
+	engine MemoryExecutorEngine[domain.MetricID, *domain.Metrics]
 	mu     sync.Mutex
 }
 
-func NewMetricFileSaveBatchRepository(
-	engine FileExecutorEngine,
-) *MetricFileSaveBatchRepository {
-	return &MetricFileSaveBatchRepository{engine: engine}
+func NewMetricMemorySaveBatchRepository(
+	engine MemoryExecutorEngine[domain.MetricID, *domain.Metrics],
+) *MetricMemorySaveBatchRepository {
+	return &MetricMemorySaveBatchRepository{engine: engine}
 }
 
-func (repo *MetricFileSaveBatchRepository) Save(
+func (repo *MetricMemorySaveBatchRepository) Save(
 	ctx context.Context, metrics []*domain.Metrics,
 ) bool {
 	repo.mu.Lock()
