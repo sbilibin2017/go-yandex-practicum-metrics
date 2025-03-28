@@ -2,98 +2,120 @@ package services
 
 import (
 	"context"
+	"testing"
+
 	"go-yandex-practicum-metrics/internal/domain"
 	"go-yandex-practicum-metrics/internal/errors"
-	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMetricUpdateService_UpdateBatch_Success(t *testing.T) {
+func TestMetricUpdateService_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	saveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
-	findRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
-	withTx := NewMockWithTransaction(ctrl)
-	service := NewMetricUpdateService(saveRepo, findRepo, withTx)
+	mockSaveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
+	mockFindRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
+	mockWithTx := NewMockWithTx(ctrl)
+	mockTx := NewMockTx(ctrl)
+	service := NewMetricUpdateService(mockSaveRepo, mockFindRepo, mockWithTx)
 	metrics := []*domain.Metrics{
 		{
 			ID:    "metric1",
-			Type:  domain.Gauge,
-			Value: new(float64),
-		},
-		{
-			ID:    "metric2",
 			Type:  domain.Counter,
 			Delta: new(int64),
-			Value: new(float64),
 		},
 	}
+	metricID := domain.MetricID{ID: "metric1", Type: domain.Counter}
 	existingMetrics := map[domain.MetricID]*domain.Metrics{
-		{ID: "metric2", Type: domain.Counter}: {
-			ID:    "metric2",
+		metricID: {ID: "metric1", Type: domain.Counter, Delta: new(int64)},
+	}
+	mockFindRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(existingMetrics, true)
+	mockSaveRepo.EXPECT().Save(gomock.Any(), gomock.Any()).Return(true)
+	mockWithTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(tx Tx) error) error {
+		mockTx.EXPECT().Commit().Return(nil).Times(1)
+		mockTx.EXPECT().Rollback().Return(nil).Times(0)
+		err := fn(mockTx)
+		mockTx.Commit()
+		return err
+	})
+	updatedMetrics, err := service.Update(context.Background(), metrics)
+	assert.NoError(t, err)
+	assert.Len(t, updatedMetrics, 1)
+	assert.Equal(t, *metrics[0].Delta, int64(0))
+}
+
+func TestMetricUpdateService_Update_FindError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockSaveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
+	mockFindRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
+	mockWithTx := NewMockWithTx(ctrl)
+	mockTx := NewMockTx(ctrl)
+	service := NewMetricUpdateService(mockSaveRepo, mockFindRepo, mockWithTx)
+	metrics := []*domain.Metrics{
+		{
+			ID:    "metric1",
 			Type:  domain.Counter,
 			Delta: new(int64),
-			Value: new(float64),
 		},
 	}
-	withTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, f func() error) error {
-		return f()
-	})
-	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(existingMetrics, true)
-	saveRepo.EXPECT().Save(gomock.Any(), gomock.Any()).Return(true)
-	result, err := service.Update(context.Background(), metrics)
-	assert.NoError(t, err)
-	assert.Equal(t, metrics, result)
+	mockFindRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool) {
+		t.Log("Find was called with filters:", filters)
+		return nil, false
+	}).Times(1)
+	mockSaveRepo.EXPECT().Save(gomock.Any(), gomock.Any()).Times(0)
+	mockWithTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(tx Tx) error) error {
+		t.Log("Inside Do function. Running the transaction function...")
+		mockTx.EXPECT().Commit().Times(0)
+		mockTx.EXPECT().Rollback().Times(0)
+		err := fn(mockTx)
+		t.Log("Transaction function executed. Error:", err)
+		return err
+	}).Times(1)
+	updatedMetrics, err := service.Update(context.Background(), metrics)
+	t.Log("Update result: Metrics:", updatedMetrics, "Error:", err)
+	assert.Error(t, err)
+	assert.Nil(t, updatedMetrics)
 }
 
-func TestMetricUpdateService_UpdateBatch_ErrorSaving(t *testing.T) {
+func TestMetricUpdateService_Update_SaveError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	saveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
-	findRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
-	withTx := NewMockWithTransaction(ctrl)
-	service := NewMetricUpdateService(saveRepo, findRepo, withTx)
+	mockSaveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
+	mockFindRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
+	mockWithTx := NewMockWithTx(ctrl)
+	mockTx := NewMockTx(ctrl)
+	service := NewMetricUpdateService(mockSaveRepo, mockFindRepo, mockWithTx)
 	metrics := []*domain.Metrics{
 		{
-			ID: "metric1", Type: domain.Gauge,
-			Value: new(float64),
+			ID:    "metric1",
+			Type:  domain.Counter,
+			Delta: new(int64),
 		},
 	}
-	withTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, f func() error) error {
-		return f()
-	})
-	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{
-		{ID: "metric1", Type: domain.Gauge}: {
-			ID: "metric1", Type: domain.Gauge,
-			Value: new(float64),
-		},
-	}, true)
-	saveRepo.EXPECT().Save(gomock.Any(), gomock.Any()).Return(false)
-	result, err := service.Update(context.Background(), metrics)
-	assert.Equal(t, errors.ErrInternal, err)
-	assert.Nil(t, result)
-}
-
-func TestMetricUpdateService_UpdateBatch_ErrorFinding(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	saveRepo := NewMockMetricUpdateSaveBatchRepository(ctrl)
-	findRepo := NewMockMetricUpdateFindBatchRepository(ctrl)
-	withTx := NewMockWithTransaction(ctrl)
-	service := NewMetricUpdateService(saveRepo, findRepo, withTx)
-	metrics := []*domain.Metrics{
+	mockFindRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{
 		{
-			ID: "metric1", Type: domain.Gauge,
-			Value: new(float64),
+			ID:   "metric1",
+			Type: domain.Counter,
+		}: {
+			ID:    "metric1",
+			Type:  domain.Counter,
+			Delta: new(int64),
 		},
-	}
-	withTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, f func() error) error {
-		return f()
-	})
-	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, false)
-	result, err := service.Update(context.Background(), metrics)
+	}, true).Times(1)
+	mockSaveRepo.EXPECT().Save(gomock.Any(), gomock.Any()).Return(false).Times(1)
+	mockWithTx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, fn func(tx Tx) error) error {
+		t.Log("Inside Do function. Running the transaction function...")
+		mockTx.EXPECT().Commit().Times(0)
+		mockTx.EXPECT().Rollback().Times(0)
+		err := fn(mockTx)
+		t.Log("Transaction function executed. Error:", err)
+		return err
+	}).Times(1)
+	updatedMetrics, err := service.Update(context.Background(), metrics)
+	t.Log("Update result: Metrics:", updatedMetrics, "Error:", err)
+	assert.Error(t, err)
 	assert.Equal(t, errors.ErrInternal, err)
-	assert.Nil(t, result)
+	assert.Nil(t, updatedMetrics)
 }

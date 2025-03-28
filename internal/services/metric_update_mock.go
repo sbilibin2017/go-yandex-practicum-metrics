@@ -87,39 +87,105 @@ func (mr *MockMetricUpdateFindBatchRepositoryMockRecorder) Find(ctx, filters int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockMetricUpdateFindBatchRepository)(nil).Find), ctx, filters)
 }
 
-// MockWithTransaction is a mock of WithTransaction interface.
-type MockWithTransaction struct {
+// MockTx is a mock of Tx interface.
+type MockTx struct {
 	ctrl     *gomock.Controller
-	recorder *MockWithTransactionMockRecorder
+	recorder *MockTxMockRecorder
 }
 
-// MockWithTransactionMockRecorder is the mock recorder for MockWithTransaction.
-type MockWithTransactionMockRecorder struct {
-	mock *MockWithTransaction
+// MockTxMockRecorder is the mock recorder for MockTx.
+type MockTxMockRecorder struct {
+	mock *MockTx
 }
 
-// NewMockWithTransaction creates a new mock instance.
-func NewMockWithTransaction(ctrl *gomock.Controller) *MockWithTransaction {
-	mock := &MockWithTransaction{ctrl: ctrl}
-	mock.recorder = &MockWithTransactionMockRecorder{mock}
+// NewMockTx creates a new mock instance.
+func NewMockTx(ctrl *gomock.Controller) *MockTx {
+	mock := &MockTx{ctrl: ctrl}
+	mock.recorder = &MockTxMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockWithTransaction) EXPECT() *MockWithTransactionMockRecorder {
+func (m *MockTx) EXPECT() *MockTxMockRecorder {
 	return m.recorder
 }
 
-// Do mocks base method.
-func (m *MockWithTransaction) Do(ctx context.Context, f func() error) error {
+// Commit mocks base method.
+func (m *MockTx) Commit() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Do", ctx, f)
+	ret := m.ctrl.Call(m, "Commit")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Commit indicates an expected call of Commit.
+func (mr *MockTxMockRecorder) Commit() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTx)(nil).Commit))
+}
+
+// Rollback mocks base method.
+func (m *MockTx) Rollback() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Rollback")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Rollback indicates an expected call of Rollback.
+func (mr *MockTxMockRecorder) Rollback() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockTx)(nil).Rollback))
+}
+
+// MockWithTx is a mock of WithTx interface.
+type MockWithTx struct {
+	ctrl     *gomock.Controller
+	recorder *MockWithTxMockRecorder
+}
+
+// MockWithTxMockRecorder is the mock recorder for MockWithTx.
+type MockWithTxMockRecorder struct {
+	mock *MockWithTx
+}
+
+// NewMockWithTx creates a new mock instance.
+func NewMockWithTx(ctrl *gomock.Controller) *MockWithTx {
+	mock := &MockWithTx{ctrl: ctrl}
+	mock.recorder = &MockWithTxMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockWithTx) EXPECT() *MockWithTxMockRecorder {
+	return m.recorder
+}
+
+// Begin mocks base method.
+func (m *MockWithTx) Begin(ctx context.Context) (Tx, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Begin", ctx)
+	ret0, _ := ret[0].(Tx)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Begin indicates an expected call of Begin.
+func (mr *MockWithTxMockRecorder) Begin(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Begin", reflect.TypeOf((*MockWithTx)(nil).Begin), ctx)
+}
+
+// Do mocks base method.
+func (m *MockWithTx) Do(ctx context.Context, fn func(Tx) error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Do", ctx, fn)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Do indicates an expected call of Do.
-func (mr *MockWithTransactionMockRecorder) Do(ctx, f interface{}) *gomock.Call {
+func (mr *MockWithTxMockRecorder) Do(ctx, fn interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Do", reflect.TypeOf((*MockWithTransaction)(nil).Do), ctx, f)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Do", reflect.TypeOf((*MockWithTx)(nil).Do), ctx, fn)
 }

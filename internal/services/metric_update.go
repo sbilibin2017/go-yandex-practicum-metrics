@@ -14,20 +14,26 @@ type MetricUpdateFindBatchRepository interface {
 	Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool)
 }
 
-type WithTransaction interface {
-	Do(ctx context.Context, f func() error) error
+type Tx interface {
+	Commit() error
+	Rollback() error
+}
+
+type WithTx interface {
+	Begin(ctx context.Context) (Tx, error)
+	Do(ctx context.Context, fn func(tx Tx) error) error
 }
 
 type MetricUpdateService struct {
 	saveRepo MetricUpdateSaveBatchRepository
 	findRepo MetricUpdateFindBatchRepository
-	withTx   WithTransaction
+	withTx   WithTx
 }
 
 func NewMetricUpdateService(
 	saveRepo MetricUpdateSaveBatchRepository,
 	findRepo MetricUpdateFindBatchRepository,
-	withTx WithTransaction,
+	withTx WithTx,
 ) *MetricUpdateService {
 	return &MetricUpdateService{
 		saveRepo: saveRepo,
@@ -39,7 +45,8 @@ func NewMetricUpdateService(
 func (s *MetricUpdateService) Update(
 	ctx context.Context, metrics []*domain.Metrics,
 ) ([]*domain.Metrics, error) {
-	err := s.withTx.Do(ctx, func() error {
+	var updatedMetrics []*domain.Metrics
+	err := s.withTx.Do(ctx, func(tx Tx) error {
 		metricIDs := make([]domain.MetricID, len(metrics))
 		for i, metric := range metrics {
 			metricIDs[i] = domain.MetricID{ID: metric.ID, Type: metric.Type}
@@ -48,18 +55,20 @@ func (s *MetricUpdateService) Update(
 		if !ok {
 			return errors.ErrInternal
 		}
+		updatedMetrics = make([]*domain.Metrics, len(metrics))
 		for i, metric := range metrics {
 			switch metric.Type {
 			case domain.Counter:
-				if existingMetric, ok := existingMetrics[domain.MetricID{ID: metric.ID, Type: metric.Type}]; ok {
-					*existingMetric.Delta += *metric.Delta
+				if existingMetric, exists := existingMetrics[domain.MetricID{
+					ID:   metric.ID,
+					Type: metric.Type,
+				}]; exists {
+					*metric.Delta += *existingMetric.Delta
 				}
-				metrics[i] = metric
-			case domain.Gauge:
-				metrics[i] = metric
 			}
+			updatedMetrics[i] = metric
 		}
-		if ok := s.saveRepo.Save(ctx, metrics); !ok {
+		if ok := s.saveRepo.Save(ctx, updatedMetrics); !ok {
 			return errors.ErrInternal
 		}
 		return nil
@@ -67,5 +76,5 @@ func (s *MetricUpdateService) Update(
 	if err != nil {
 		return nil, err
 	}
-	return metrics, nil
+	return updatedMetrics, nil
 }
