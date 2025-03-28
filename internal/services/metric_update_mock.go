@@ -6,7 +6,6 @@ package services
 
 import (
 	context "context"
-	sql "database/sql"
 	domain "go-yandex-practicum-metrics/internal/domain"
 	reflect "reflect"
 
@@ -36,18 +35,18 @@ func (m *MockMetricUpdateSaveBatchRepository) EXPECT() *MockMetricUpdateSaveBatc
 	return m.recorder
 }
 
-// SaveBatch mocks base method.
-func (m *MockMetricUpdateSaveBatchRepository) SaveBatch(ctx context.Context, metrics []*domain.Metrics) error {
+// Save mocks base method.
+func (m *MockMetricUpdateSaveBatchRepository) Save(ctx context.Context, metrics []*domain.Metrics) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveBatch", ctx, metrics)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "Save", ctx, metrics)
+	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// SaveBatch indicates an expected call of SaveBatch.
-func (mr *MockMetricUpdateSaveBatchRepositoryMockRecorder) SaveBatch(ctx, metrics interface{}) *gomock.Call {
+// Save indicates an expected call of Save.
+func (mr *MockMetricUpdateSaveBatchRepositoryMockRecorder) Save(ctx, metrics interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveBatch", reflect.TypeOf((*MockMetricUpdateSaveBatchRepository)(nil).SaveBatch), ctx, metrics)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockMetricUpdateSaveBatchRepository)(nil).Save), ctx, metrics)
 }
 
 // MockMetricUpdateFindBatchRepository is a mock of MetricUpdateFindBatchRepository interface.
@@ -73,106 +72,54 @@ func (m *MockMetricUpdateFindBatchRepository) EXPECT() *MockMetricUpdateFindBatc
 	return m.recorder
 }
 
-// FindBatch mocks base method.
-func (m *MockMetricUpdateFindBatchRepository) FindBatch(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, error) {
+// Find mocks base method.
+func (m *MockMetricUpdateFindBatchRepository) Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindBatch", ctx, filters)
+	ret := m.ctrl.Call(m, "Find", ctx, filters)
 	ret0, _ := ret[0].(map[domain.MetricID]*domain.Metrics)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-// FindBatch indicates an expected call of FindBatch.
-func (mr *MockMetricUpdateFindBatchRepositoryMockRecorder) FindBatch(ctx, filters interface{}) *gomock.Call {
+// Find indicates an expected call of Find.
+func (mr *MockMetricUpdateFindBatchRepositoryMockRecorder) Find(ctx, filters interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBatch", reflect.TypeOf((*MockMetricUpdateFindBatchRepository)(nil).FindBatch), ctx, filters)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockMetricUpdateFindBatchRepository)(nil).Find), ctx, filters)
 }
 
-// MockTxBeginer is a mock of TxBeginer interface.
-type MockTxBeginer struct {
+// MockWithTransaction is a mock of WithTransaction interface.
+type MockWithTransaction struct {
 	ctrl     *gomock.Controller
-	recorder *MockTxBeginerMockRecorder
+	recorder *MockWithTransactionMockRecorder
 }
 
-// MockTxBeginerMockRecorder is the mock recorder for MockTxBeginer.
-type MockTxBeginerMockRecorder struct {
-	mock *MockTxBeginer
+// MockWithTransactionMockRecorder is the mock recorder for MockWithTransaction.
+type MockWithTransactionMockRecorder struct {
+	mock *MockWithTransaction
 }
 
-// NewMockTxBeginer creates a new mock instance.
-func NewMockTxBeginer(ctrl *gomock.Controller) *MockTxBeginer {
-	mock := &MockTxBeginer{ctrl: ctrl}
-	mock.recorder = &MockTxBeginerMockRecorder{mock}
+// NewMockWithTransaction creates a new mock instance.
+func NewMockWithTransaction(ctrl *gomock.Controller) *MockWithTransaction {
+	mock := &MockWithTransaction{ctrl: ctrl}
+	mock.recorder = &MockWithTransactionMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTxBeginer) EXPECT() *MockTxBeginerMockRecorder {
+func (m *MockWithTransaction) EXPECT() *MockWithTransactionMockRecorder {
 	return m.recorder
 }
 
-// BeginTx mocks base method.
-func (m *MockTxBeginer) BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error) {
+// Do mocks base method.
+func (m *MockWithTransaction) Do(ctx context.Context, f func() error) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BeginTx", ctx, opts)
-	ret0, _ := ret[0].(Tx)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BeginTx indicates an expected call of BeginTx.
-func (mr *MockTxBeginerMockRecorder) BeginTx(ctx, opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginTx", reflect.TypeOf((*MockTxBeginer)(nil).BeginTx), ctx, opts)
-}
-
-// MockTx is a mock of Tx interface.
-type MockTx struct {
-	ctrl     *gomock.Controller
-	recorder *MockTxMockRecorder
-}
-
-// MockTxMockRecorder is the mock recorder for MockTx.
-type MockTxMockRecorder struct {
-	mock *MockTx
-}
-
-// NewMockTx creates a new mock instance.
-func NewMockTx(ctrl *gomock.Controller) *MockTx {
-	mock := &MockTx{ctrl: ctrl}
-	mock.recorder = &MockTxMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTx) EXPECT() *MockTxMockRecorder {
-	return m.recorder
-}
-
-// Commit mocks base method.
-func (m *MockTx) Commit() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Commit")
+	ret := m.ctrl.Call(m, "Do", ctx, f)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Commit indicates an expected call of Commit.
-func (mr *MockTxMockRecorder) Commit() *gomock.Call {
+// Do indicates an expected call of Do.
+func (mr *MockWithTransactionMockRecorder) Do(ctx, f interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTx)(nil).Commit))
-}
-
-// Rollback mocks base method.
-func (m *MockTx) Rollback() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rollback")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Rollback indicates an expected call of Rollback.
-func (mr *MockTxMockRecorder) Rollback() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockTx)(nil).Rollback))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Do", reflect.TypeOf((*MockWithTransaction)(nil).Do), ctx, f)
 }

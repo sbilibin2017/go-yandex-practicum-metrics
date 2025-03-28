@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricGetFindBatchRepository interface {
-	FindBatch(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, error)
+	Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool)
 }
 
 type MetricGetService struct {
@@ -25,13 +25,13 @@ func NewMetricGetService(
 func (s *MetricGetService) GetByID(
 	ctx context.Context, id *domain.MetricID,
 ) (*domain.Metrics, error) {
-	existingMetrics, err := s.findRepo.FindBatch(ctx, []domain.MetricID{*id})
-	if err != nil {
-		return nil, err
+	existingMetrics, ok := s.findRepo.Find(ctx, []domain.MetricID{*id})
+	if !ok {
+		return nil, errors.ErrInternal
 	}
 	metrics, exists := existingMetrics[*id]
 	if !exists {
-		return nil, errors.New("metric not found")
+		return nil, errors.ErrMetricNotFound
 	}
 	return metrics, nil
 }

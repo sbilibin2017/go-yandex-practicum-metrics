@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricListRepository interface {
-	List(ctx context.Context) (map[domain.MetricID]*domain.Metrics, error)
+	Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool)
 }
 
 type MetricListService struct {
@@ -24,9 +25,9 @@ func NewMetricListService(
 func (s *MetricListService) List(
 	ctx context.Context,
 ) ([]*domain.Metrics, error) {
-	existingMetrics, err := s.listRepo.List(ctx)
-	if err != nil {
-		return nil, err
+	existingMetrics, ok := s.listRepo.Find(ctx, []domain.MetricID{})
+	if !ok {
+		return nil, errors.ErrInternal
 	}
 	var metrics []*domain.Metrics
 	for _, metric := range existingMetrics {

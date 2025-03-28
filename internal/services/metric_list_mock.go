@@ -35,17 +35,17 @@ func (m *MockMetricListRepository) EXPECT() *MockMetricListRepositoryMockRecorde
 	return m.recorder
 }
 
-// List mocks base method.
-func (m *MockMetricListRepository) List(ctx context.Context) (map[domain.MetricID]*domain.Metrics, error) {
+// Find mocks base method.
+func (m *MockMetricListRepository) Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", ctx)
+	ret := m.ctrl.Call(m, "Find", ctx, filters)
 	ret0, _ := ret[0].(map[domain.MetricID]*domain.Metrics)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-// List indicates an expected call of List.
-func (mr *MockMetricListRepositoryMockRecorder) List(ctx interface{}) *gomock.Call {
+// Find indicates an expected call of Find.
+func (mr *MockMetricListRepositoryMockRecorder) Find(ctx, filters interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockMetricListRepository)(nil).List), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockMetricListRepository)(nil).Find), ctx, filters)
 }

@@ -2,83 +2,70 @@ package services
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 )
 
 type MetricUpdateSaveBatchRepository interface {
-	SaveBatch(ctx context.Context, metrics []*domain.Metrics) error
+	Save(ctx context.Context, metrics []*domain.Metrics) bool
 }
 
 type MetricUpdateFindBatchRepository interface {
-	FindBatch(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, error)
+	Find(ctx context.Context, filters []domain.MetricID) (map[domain.MetricID]*domain.Metrics, bool)
 }
 
-type TxBeginer interface {
-	BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error)
-}
-
-type Tx interface {
-	Commit() error
-	Rollback() error
+type WithTransaction interface {
+	Do(ctx context.Context, f func() error) error
 }
 
 type MetricUpdateService struct {
-	saveRepo  MetricUpdateSaveBatchRepository
-	findRepo  MetricUpdateFindBatchRepository
-	txBeginer TxBeginer
+	saveRepo MetricUpdateSaveBatchRepository
+	findRepo MetricUpdateFindBatchRepository
+	withTx   WithTransaction
 }
 
 func NewMetricUpdateService(
 	saveRepo MetricUpdateSaveBatchRepository,
 	findRepo MetricUpdateFindBatchRepository,
-	txBeginer TxBeginer,
+	withTx WithTransaction,
 ) *MetricUpdateService {
 	return &MetricUpdateService{
-		saveRepo:  saveRepo,
-		findRepo:  findRepo,
-		txBeginer: txBeginer,
+		saveRepo: saveRepo,
+		findRepo: findRepo,
+		withTx:   withTx,
 	}
 }
 
-func (s *MetricUpdateService) UpdateBatch(
+func (s *MetricUpdateService) Update(
 	ctx context.Context, metrics []*domain.Metrics,
 ) ([]*domain.Metrics, error) {
-	tx, err := s.txBeginer.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %w", err)
-	}
-	metricIDs := make([]domain.MetricID, len(metrics))
-	for i, metric := range metrics {
-		metricIDs[i] = domain.MetricID{ID: metric.ID, Type: metric.Type}
-	}
-	existingMetrics, err := s.findRepo.FindBatch(ctx, metricIDs)
-	if err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to find batch: %w", err)
-	}
-	for i, metric := range metrics {
-		if metric.Type == string(domain.Gauge) {
-			metrics[i] = metric
-		} else if metric.Type == string(domain.Counter) {
-			if existingMetric, ok := existingMetrics[domain.MetricID{ID: metric.ID, Type: metric.Type}]; ok {
-				if metric.Delta != nil {
+	err := s.withTx.Do(ctx, func() error {
+		metricIDs := make([]domain.MetricID, len(metrics))
+		for i, metric := range metrics {
+			metricIDs[i] = domain.MetricID{ID: metric.ID, Type: metric.Type}
+		}
+		existingMetrics, ok := s.findRepo.Find(ctx, metricIDs)
+		if !ok {
+			return errors.ErrInternal
+		}
+		for i, metric := range metrics {
+			switch metric.Type {
+			case domain.Counter:
+				if existingMetric, ok := existingMetrics[domain.MetricID{ID: metric.ID, Type: metric.Type}]; ok {
 					*existingMetric.Delta += *metric.Delta
 				}
-				metrics[i] = existingMetric
-			} else {
+				metrics[i] = metric
+			case domain.Gauge:
 				metrics[i] = metric
 			}
 		}
-	}
-	if err := s.saveRepo.SaveBatch(ctx, metrics); err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to save batch: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		tx.Rollback()
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		if ok := s.saveRepo.Save(ctx, metrics); !ok {
+			return errors.ErrInternal
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return metrics, nil
 }

@@ -2,13 +2,12 @@ package services
 
 import (
 	"context"
-	"errors"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMetricGetService_GetByID_Success(t *testing.T) {
@@ -16,43 +15,39 @@ func TestMetricGetService_GetByID_Success(t *testing.T) {
 	defer ctrl.Finish()
 	findRepo := NewMockMetricGetFindBatchRepository(ctrl)
 	service := NewMetricGetService(findRepo)
-	metricID := domain.MetricID{ID: "metric1", Type: "counter"}
 	metrics := &domain.Metrics{
-		ID:    "metric1",
-		Type:  "counter",
-		Delta: new(int64),
+		ID: "metric1", Type: domain.Gauge,
+		Value: new(float64),
 	}
-	findRepo.EXPECT().FindBatch(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{
+	metricID := domain.MetricID{ID: metrics.ID, Type: metrics.Type}
+	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{
 		metricID: metrics,
-	}, nil)
+	}, true)
 	result, err := service.GetByID(context.Background(), &metricID)
-	require.NoError(t, err)
-	assert.Equal(t, result.ID, "metric1")
-	assert.Equal(t, result.Type, "counter")
+	assert.NoError(t, err)
+	assert.Equal(t, metrics, result)
 }
 
-func TestMetricGetService_GetByID_NotFound(t *testing.T) {
+func TestMetricGetService_GetByID_MetricNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	findRepo := NewMockMetricGetFindBatchRepository(ctrl)
 	service := NewMetricGetService(findRepo)
-	metricID := domain.MetricID{ID: "metric1", Type: "counter"}
-	findRepo.EXPECT().FindBatch(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{}, nil)
-	result, err := service.GetByID(context.Background(), &metricID)
-	require.Error(t, err)
+	metricID := &domain.MetricID{ID: "metric1", Type: domain.Gauge}
+	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(map[domain.MetricID]*domain.Metrics{}, true)
+	result, err := service.GetByID(context.Background(), metricID)
+	assert.Equal(t, errors.ErrMetricNotFound, err)
 	assert.Nil(t, result)
-
 }
 
-func TestMetricGetService_GetByID_Error(t *testing.T) {
+func TestMetricGetService_GetByID_ErrorFinding(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	findRepo := NewMockMetricGetFindBatchRepository(ctrl)
 	service := NewMetricGetService(findRepo)
-	metricID := domain.MetricID{ID: "metric1", Type: "counter"}
-	findRepo.EXPECT().FindBatch(gomock.Any(), gomock.Any()).Return(nil, errors.New("database error"))
-	result, err := service.GetByID(context.Background(), &metricID)
-	require.Error(t, err)
+	metricID := &domain.MetricID{ID: "metric1", Type: domain.Gauge}
+	findRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, false)
+	result, err := service.GetByID(context.Background(), metricID)
+	assert.Equal(t, errors.ErrInternal, err)
 	assert.Nil(t, result)
-
 }
