@@ -3,7 +3,9 @@ package errors
 import "errors"
 
 var (
-	InvalidMetricTypeError  = errors.New("invalid metric type")
-	MissingMetricNameError  = errors.New("missing metric name")
-	InvalidMetricValueError = errors.New("invalid metric value")
+	ErrInvalidMetricType  = errors.New("invalid metric type")
+	ErrMissingMetricID    = errors.New("missing metric id")
+	ErrInvalidMetricValue = errors.New("invalid metric value")
+	ErrMetricNotFound     = errors.New("metric not found")
+	ErrInternal           = errors.New("internal error")
 )
