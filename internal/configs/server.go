@@ -14,6 +14,22 @@ type ServerConfig struct {
 	restore         string
 }
 
+func NewServerConfig(
+	address string,
+	databaseDSN string,
+	storeInterval string,
+	fileStoragePath string,
+	restore string,
+) *ServerConfig {
+	return &ServerConfig{
+		address:         address,
+		databaseDSN:     databaseDSN,
+		storeInterval:   storeInterval,
+		fileStoragePath: fileStoragePath,
+		restore:         restore,
+	}
+}
+
 func (c *ServerConfig) SetAddress(address string) error {
 	if match, _ := regexp.MatchString(`^\S+:\d+$`, address); !match {
 		return errors.New("invalid address format, expected host:port")
