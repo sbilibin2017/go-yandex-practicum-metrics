@@ -3,48 +3,52 @@ package usecases
 import (
 	"context"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/logger"
 )
 
 type MetricUpdatePathService interface {
 	Update(ctx context.Context, metrics []*domain.Metrics) ([]*domain.Metrics, error)
 }
 
-type MetricUpdateRequester interface {
-	Validate() error
-	ToDomain() []*domain.Metrics
-}
-
-type MetricUpdateResponser interface {
-	ToResponse() *[]byte
-}
-
 type MetricUpdatePathUsecase struct {
-	svc       MetricUpdatePathService
-	requester MetricUpdateRequester
-	responser MetricUpdateResponser
+	svc MetricUpdatePathService
 }
 
 func NewMetricUpdatePathUsecase(
 	svc MetricUpdatePathService,
-	requester MetricUpdateRequester,
-	responser MetricUpdateResponser,
 ) *MetricUpdatePathUsecase {
 	return &MetricUpdatePathUsecase{
-		svc:       svc,
-		requester: requester,
-		responser: responser,
+		svc: svc,
 	}
 }
 
-func (uc MetricUpdatePathUsecase) Execute(ctx context.Context) (*[]byte, error) {
-	err := uc.requester.Validate()
+type MetricUpdatePathRequest struct {
+	Type  string
+	Name  string
+	Value string
+}
+
+type MetricUpdatePathResponse struct {
+	Message string
+}
+
+func (uc *MetricUpdatePathUsecase) Execute(
+	ctx context.Context,
+	req *MetricUpdatePathRequest,
+) (*MetricUpdatePathResponse, error) {
+	logger.Info("Executing MetricUpdatePathUsecase", "type", req.Type, "name", req.Name)
+	metrics, err := domain.NewMetrics(req.Type, req.Name, req.Value)
 	if err != nil {
+		logger.Error("Error creating new metrics", "error", err)
 		return nil, err
 	}
-	metrics := uc.requester.ToDomain()
-	_, err = uc.svc.Update(ctx, metrics)
+	_, err = uc.svc.Update(ctx, []*domain.Metrics{metrics})
 	if err != nil {
+		logger.Error("Error updating metrics", "error", err)
 		return nil, err
 	}
-	return uc.responser.ToResponse(), nil
+	logger.Info("Metric updated successfully", "name", req.Name)
+	return &MetricUpdatePathResponse{
+		Message: "Metric updated successfully",
+	}, nil
 }
