@@ -1,8 +1,21 @@
 package domain
 
 type Metrics struct {
-	ID    string     `json:"id"`
-	Type  MetricType `json:"type"`
-	Delta *int64     `json:"delta,omitempty"`
-	Value *float64   `json:"value,omitempty"`
+	MetricID
+	MetricValue
+}
+
+func NewMetrics(mtype string, name string, value string) (*Metrics, error) {
+	metricID, err := NewMetricID(name, mtype)
+	if err != nil {
+		return nil, err
+	}
+	metricValue, err := NewMetricValue(mtype, value)
+	if err != nil {
+		return nil, err
+	}
+	return &Metrics{
+		MetricID:    *metricID,
+		MetricValue: *metricValue,
+	}, nil
 }
