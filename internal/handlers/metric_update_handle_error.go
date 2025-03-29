@@ -9,7 +9,7 @@ import (
 )
 
 func metricUpdateHandleError(w http.ResponseWriter, err error) {
-	if errors.Is(err, e.ErrMissingMetricID) {
+	if errors.Is(err, e.ErrInvalidMetricID) {
 		utils.MakeNotFoundResponse(w, err)
 		return
 	} else if errors.Is(err, e.ErrInvalidMetricType) {
