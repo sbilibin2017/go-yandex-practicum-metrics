@@ -8,18 +8,21 @@ import (
 type LogLevel int
 
 const (
-	DebugLevel LogLevel = iota
-	InfoLevel
-	ErrorLevel
+	DEBUG LogLevel = iota
+	INFO
+	WARN
+	ERROR
 )
 
 func convertLogLevel(level LogLevel) zapcore.Level {
 	switch level {
-	case DebugLevel:
+	case DEBUG:
 		return zap.DebugLevel
-	case InfoLevel:
+	case INFO:
 		return zap.InfoLevel
-	case ErrorLevel:
+	case WARN:
+		return zap.WarnLevel
+	case ERROR:
 		return zap.ErrorLevel
 	default:
 		return zap.InfoLevel
