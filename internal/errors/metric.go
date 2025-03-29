@@ -4,7 +4,7 @@ import "errors"
 
 var (
 	ErrInvalidMetricType  = errors.New("invalid metric type")
-	ErrMissingMetricID    = errors.New("missing metric id")
+	ErrInvalidMetricID    = errors.New("invalid metric id")
 	ErrInvalidMetricValue = errors.New("invalid metric value")
 	ErrMetricNotFound     = errors.New("metric not found")
 	ErrInternal           = errors.New("internal error")
