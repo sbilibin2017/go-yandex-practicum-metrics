@@ -1,22 +1,20 @@
 package routers
 
 import (
-	"go-yandex-practicum-metrics/internal/routers/utils"
+	"go-yandex-practicum-metrics/internal/logger"
+	"go-yandex-practicum-metrics/internal/router"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-type Logger interface {
-	Infow(msg string, args ...any)
-}
-
 func RegisterMetricUpdatePathRouter(
-	r *httprouter.Router,
+	r *router.Router,
 	h httprouter.Handle,
-	logger Logger,
 ) {
-	r.POST(
+	logger.Info("Registering MetricUpdatePath router", "method", "POST", "path", "/update/:type/:name/:value")
+	r.AddHandler(
+		"POST",
 		"/update/:type/:name/:value",
-		utils.HandlerToRouterHandle(utils.HandlerWithLoggingMiddleware(h, logger)),
+		h,
 	)
 }
