@@ -1,4 +1,4 @@
-.PHONY: test test-cov
+.PHONY: test test-cov migrate lint mockgen
 
 test:
 	go test ./...
@@ -17,6 +17,3 @@ mockgen:
 		-package=$(shell basename $(dir $(file))) 
 
 
-
-
-	
