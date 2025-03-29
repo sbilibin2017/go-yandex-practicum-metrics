@@ -4,34 +4,35 @@ import (
 	"context"
 	"encoding/json"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/logger"
 	"io"
 	"sync"
 )
 
-type MetricFileSaveBatchRepository struct {
+type MetricFileSaveRepository struct {
 	writer io.Writer
 	mu     sync.Mutex
 }
 
-func NewMetricFileSaveBatchRepository(
+func NewMetricFileSaveRepository(
 	writer io.Writer,
-) *MetricFileSaveBatchRepository {
-	return &MetricFileSaveBatchRepository{writer: writer}
+) *MetricFileSaveRepository {
+	return &MetricFileSaveRepository{writer: writer}
 }
 
-func (repo *MetricFileSaveBatchRepository) Save(
+func (repo *MetricFileSaveRepository) Save(
 	ctx context.Context, metrics []*domain.Metrics,
-) bool {
+) error {
+	logger.Info("Saving metrics to file", "metrics_count", len(metrics))
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	if repo.writer == nil {
-		return false
-	}
 	encoder := json.NewEncoder(repo.writer)
 	for _, metric := range metrics {
 		if err := encoder.Encode(metric); err != nil {
-			return false
+			logger.Error("Error encoding metric", "error", err)
+			return err
 		}
 	}
-	return true
+	logger.Info("Metrics saved successfully", "metrics_count", len(metrics))
+	return nil
 }

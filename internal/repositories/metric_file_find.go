@@ -4,50 +4,54 @@ import (
 	"context"
 	"encoding/json"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/logger"
 	"io"
 	"sync"
 )
 
-type MetricFileFindBatchRepository struct {
-	reader io.Reader
-	seeker io.Seeker
-	mu     sync.Mutex
+type ReaderSeaker interface {
+	io.Reader
+	io.Seeker
 }
 
-func NewMetricFileFindBatchRepository(
-	reader io.Reader,
-	seeker io.Seeker,
-) *MetricFileFindBatchRepository {
-	return &MetricFileFindBatchRepository{
-		reader: reader,
-		seeker: seeker,
+type MetricFileFindRepository struct {
+	file ReaderSeaker
+	mu   sync.Mutex
+}
+
+func NewMetricFileFindRepository(
+	file ReaderSeaker,
+) *MetricFileFindRepository {
+	return &MetricFileFindRepository{
+		file: file,
 	}
 }
 
-func (repo *MetricFileFindBatchRepository) Find(
+func (repo *MetricFileFindRepository) Find(
 	ctx context.Context, filters []domain.MetricID,
-) (map[domain.MetricID]*domain.Metrics, bool) {
+) (map[domain.MetricID]*domain.Metrics, error) {
+	logger.Info("Finding metrics from file", "filters_count", len(filters))
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	filterMap := make(map[domain.MetricID]struct{})
 	for _, filter := range filters {
 		filterMap[filter] = struct{}{}
 	}
-	if repo.reader == nil {
-		return nil, false
-	}
-	_, err := repo.seeker.Seek(0, io.SeekStart)
+	_, err := repo.file.Seek(0, io.SeekStart)
 	if err != nil {
-		return nil, false
+		logger.Error("Error seeking file", "error", err)
+		return nil, err
 	}
 	var allMetrics []*domain.Metrics
-	decoder := json.NewDecoder(repo.reader)
+	decoder := json.NewDecoder(repo.file)
 	for {
 		var metric domain.Metrics
 		if err := decoder.Decode(&metric); err != nil {
 			if err.Error() == "EOF" {
 				break
 			}
+			logger.Error("Error decoding metric", "error", err)
+			return nil, err
 		}
 		allMetrics = append(allMetrics, &metric)
 	}
@@ -58,5 +62,6 @@ func (repo *MetricFileFindBatchRepository) Find(
 			result[metricID] = metric
 		}
 	}
-	return result, true
+	logger.Info("Metrics found", "result_count", len(result))
+	return result, nil
 }

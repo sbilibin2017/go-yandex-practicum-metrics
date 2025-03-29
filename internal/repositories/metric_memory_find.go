@@ -3,23 +3,25 @@ package repositories
 import (
 	"context"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/logger"
 	"sync"
 )
 
-type MetricMemoryFindBatchRepository struct {
+type MetricMemoryFindRepository struct {
 	data map[domain.MetricID]*domain.Metrics
 	mu   sync.Mutex
 }
 
-func NewMetricMemoryFindBatchRepository(
+func NewMetricMemoryFindRepository(
 	data map[domain.MetricID]*domain.Metrics,
-) *MetricMemoryFindBatchRepository {
-	return &MetricMemoryFindBatchRepository{data: data}
+) *MetricMemoryFindRepository {
+	return &MetricMemoryFindRepository{data: data}
 }
 
-func (repo *MetricMemoryFindBatchRepository) Find(
+func (repo *MetricMemoryFindRepository) Find(
 	ctx context.Context, filters []domain.MetricID,
-) (map[domain.MetricID]*domain.Metrics, bool) {
+) (map[domain.MetricID]*domain.Metrics, error) {
+	logger.Info("Finding metrics from memory", "filters_count", len(filters))
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	filterMap := make(map[domain.MetricID]struct{})
@@ -30,7 +32,9 @@ func (repo *MetricMemoryFindBatchRepository) Find(
 	for metricID, metric := range repo.data {
 		if _, exists := filterMap[metricID]; exists {
 			result[metricID] = metric
+			logger.Info("Metric found", "id", metricID.ID, "type", metricID.Type)
 		}
 	}
-	return result, true
+	logger.Info("Metrics found", "result_count", len(result))
+	return result, nil
 }

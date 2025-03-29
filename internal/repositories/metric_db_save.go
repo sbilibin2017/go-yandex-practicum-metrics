@@ -5,13 +5,16 @@ import (
 	"database/sql"
 	"fmt"
 	"go-yandex-practicum-metrics/internal/domain"
+	"go-yandex-practicum-metrics/internal/logger"
 	"strings"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type MetricDBSaveBatchRepository struct {
-	db *sql.DB
+type DBSave interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+type MetricDBSaveRepository struct {
+	db DBSave
 }
 
 var saveBatchQueryTemplate = `
@@ -34,20 +37,24 @@ func buildSaveBatchQuery(metrics []*domain.Metrics) (string, []any) {
 	return query, args
 }
 
-func NewMetricDBSaveBatchRepository(db *sql.DB) *MetricDBSaveBatchRepository {
-	return &MetricDBSaveBatchRepository{db: db}
+func NewMetricDBSaveRepository(db DBSave) *MetricDBSaveRepository {
+	return &MetricDBSaveRepository{db: db}
 }
 
-func (repo *MetricDBSaveBatchRepository) SaveBatch(
+func (repo *MetricDBSaveRepository) Save(
 	ctx context.Context, metrics []*domain.Metrics,
-) bool {
+) error {
 	if len(metrics) == 0 {
-		return true
+		logger.Info("No metrics to save")
+		return nil
 	}
 	query, args := buildSaveBatchQuery(metrics)
+	logger.Info("Executing batch save query", "query", query, "args_count", len(args))
 	_, err := repo.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return false
+		logger.Error("Error executing batch save query", "error", err)
+		return err
 	}
-	return err == nil
+	logger.Info("Batch save completed successfully", "metrics_count", len(metrics))
+	return nil
 }
