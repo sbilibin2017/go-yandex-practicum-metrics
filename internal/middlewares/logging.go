@@ -5,36 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"go-yandex-practicum-metrics/internal/logger"
 )
 
-type LoggingMiddlewareLogger interface {
-	Infow(msg string, args ...any)
-}
-
-func LoggingMiddleware(logger LoggingMiddlewareLogger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestID := generateUUID()
-			start := time.Now()
-			logger.Infow("Request received",
-				"request_id", requestID,
-				"method", r.Method,
-				"uri", r.URL.Path,
-			)
-			responseRecorder := &responseLoggingWriter{
-				ResponseWriter: w,
-				statusCode:     http.StatusOK,
-			}
-			w = responseRecorder
-			next.ServeHTTP(w, r)
-			logger.Infow("Response sent",
-				"request_id", requestID,
-				"status", responseRecorder.StatusCode(),
-				"size", responseRecorder.Size(),
-				"duration", time.Since(start),
-			)
-		})
-	}
+func LoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := generateUUID()
+		start := time.Now()
+		logger.Info("Request received",
+			"request_id", requestID,
+			"method", r.Method,
+			"uri", r.URL.Path,
+		)
+		responseRecorder := &responseLoggingWriter{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
+		w = responseRecorder
+		next.ServeHTTP(w, r)
+		logger.Info("Response sent",
+			"request_id", requestID,
+			"status", responseRecorder.StatusCode(),
+			"size", responseRecorder.Size(),
+			"duration", time.Since(start),
+		)
+	})
 }
 
 func generateUUID() string {
